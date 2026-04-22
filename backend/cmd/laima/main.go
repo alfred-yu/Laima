@@ -8,6 +8,9 @@ import (
 
 	repoapi "laima/internal/repo/api"
 	userapi "laima/internal/user/api"
+	prapi "laima/internal/pr/api"
+	aiapi "laima/internal/ai/api"
+	cicdapi "laima/internal/cicd/api"
 
 	"github.com/gin-gonic/gin"
 	"github.com/minio/minio-go/v7"
@@ -57,6 +60,15 @@ func main() {
 
 	userAPI := userapi.NewUserAPI(db, redisClient)
 	userAPI.RegisterRoutes(r)
+
+	prAPI := prapi.NewPRAPI(db)
+	prAPI.RegisterRoutes(r)
+
+	aiAPI := aiapi.NewAIApi(db)
+	aiAPI.RegisterRoutes(r)
+
+	cicdAPI := cicdapi.NewCICDApi(db)
+	cicdAPI.RegisterRoutes(r)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {

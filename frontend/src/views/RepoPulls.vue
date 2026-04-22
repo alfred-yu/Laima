@@ -79,29 +79,32 @@ const pulls = ref([
 
 .btn {
   padding: 8px 16px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
-  background: #fff;
-  color: #333;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.3s;
 }
 
 .btn.primary {
-  background: #0366d6;
+  background: var(--accent-color);
   color: #fff;
-  border-color: #0366d6;
+  border-color: var(--accent-color);
 }
 
 .btn.primary:hover {
-  background: #0056b3;
+  opacity: 0.9;
 }
 
 .filter-options select {
   padding: 8px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 14px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: border-color 0.3s, background-color 0.3s, color 0.3s;
 }
 
 .pulls-list {
@@ -115,10 +118,10 @@ const pulls = ref([
   justify-content: space-between;
   align-items: center;
   padding: 16px;
-  background: #fff;
+  background: var(--bg-secondary);
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s;
+  transition: transform 0.2s, background-color 0.3s, box-shadow 0.3s;
 }
 
 .pull-item:hover {
@@ -133,14 +136,16 @@ const pulls = ref([
 .pull-title {
   margin: 0 0 8px 0;
   font-size: 16px;
-  color: #333;
+  color: var(--text-primary);
+  transition: color 0.3s;
 }
 
 .pull-meta {
   display: flex;
   gap: 16px;
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
+  transition: color 0.3s;
 }
 
 .pull-status {
@@ -151,17 +156,17 @@ const pulls = ref([
 }
 
 .pull-status.open {
-  background: #d1e7dd;
-  color: #0f5132;
+  background: var(--success-color);
+  color: #fff;
 }
 
 .pull-status.merged {
-  background: #cfe2ff;
-  color: #084298;
+  background: var(--accent-color);
+  color: #fff;
 }
 
 .pull-status.closed {
-  background: #f8d7da;
-  color: #842029;
+  background: var(--danger-color);
+  color: #fff;
 }
 </style>

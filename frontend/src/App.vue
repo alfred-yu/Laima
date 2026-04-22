@@ -43,11 +43,14 @@
         <div class="search-box">
           <input type="text" placeholder="搜索..." />
         </div>
-        <div class="user-menu">
-          <button class="user-avatar" v-if="isLoggedIn">
-            {{ currentUser?.name?.charAt(0) || 'U' }}
-          </button>
-          <router-link to="/login" v-else class="login-link">登录</router-link>
+        <div class="top-actions">
+          <ThemeToggle />
+          <div class="user-menu">
+            <button class="user-avatar" v-if="isLoggedIn">
+              {{ currentUser?.name?.charAt(0) || 'U' }}
+            </button>
+            <router-link to="/login" v-else class="login-link">登录</router-link>
+          </div>
         </div>
       </header>
       <main class="content">
@@ -62,8 +65,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useGlobalStore, useUserStore } from './stores'
+import { ThemeToggle } from './components'
 
 const globalStore = useGlobalStore()
 const userStore = useUserStore()
@@ -75,6 +79,12 @@ const currentUser = computed(() => userStore.currentUser)
 const toggleSidebar = () => {
   globalStore.toggleSidebar()
 }
+
+// 初始化主题
+onMounted(() => {
+  const currentTheme = globalStore.currentTheme
+  document.documentElement.setAttribute('data-theme', currentTheme)
+})
 </script>
 
 <style>
@@ -85,12 +95,46 @@ const toggleSidebar = () => {
   box-sizing: border-box;
 }
 
+:root {
+  --bg-primary: #f5f5f5;
+  --bg-secondary: #fff;
+  --text-primary: #333;
+  --text-secondary: #666;
+  --border-color: #ddd;
+  --sidebar-bg: #2d3748;
+  --sidebar-text: #e2e8f0;
+  --sidebar-hover: #4a5568;
+  --accent-color: #0366d6;
+  --success-color: #28a745;
+  --danger-color: #dc3545;
+  --warning-color: #ffc107;
+  --info-color: #17a2b8;
+}
+
+/* 暗色主题变量 */
+[data-theme="dark"] {
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --text-primary: #e2e8f0;
+  --text-secondary: #a0aec0;
+  --border-color: #4a5568;
+  --sidebar-bg: #1a202c;
+  --sidebar-text: #e2e8f0;
+  --sidebar-hover: #2d3748;
+  --accent-color: #4299e1;
+  --success-color: #48bb78;
+  --danger-color: #f56565;
+  --warning-color: #ed8936;
+  --info-color: #38b2ac;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-size: 14px;
   line-height: 1.5;
-  color: #333;
-  background-color: #f5f5f5;
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  transition: background-color 0.3s, color 0.3s;
 }
 
 /* 应用布局 */
@@ -102,8 +146,8 @@ body {
 /* 侧边栏 */
 .sidebar {
   width: 240px;
-  background: #2d3748;
-  color: #fff;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
   transition: width 0.3s ease;
   height: 100vh;
   position: fixed;
@@ -116,13 +160,13 @@ body {
 
 .sidebar-header {
   padding: 20px;
-  border-bottom: 1px solid #4a5568;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .logo {
   font-size: 20px;
   font-weight: 700;
-  color: #fff;
+  color: var(--sidebar-text);
 }
 
 .sidebar-nav {
@@ -133,13 +177,13 @@ body {
   display: flex;
   align-items: center;
   padding: 12px 20px;
-  color: #e2e8f0;
+  color: var(--sidebar-text);
   text-decoration: none;
   transition: background-color 0.3s;
 }
 
 .nav-item:hover {
-  background-color: #4a5568;
+  background-color: var(--sidebar-hover);
 }
 
 .nav-icon {
@@ -173,11 +217,12 @@ body {
   align-items: center;
   padding: 0 20px;
   height: 64px;
-  background: #fff;
+  background: var(--bg-secondary);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   position: sticky;
   top: 0;
   z-index: 100;
+  transition: background-color 0.3s;
 }
 
 .menu-toggle {
@@ -186,7 +231,7 @@ body {
   font-size: 20px;
   cursor: pointer;
   margin-right: 20px;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .search-box {
@@ -197,9 +242,18 @@ body {
 .search-box input {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 14px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: all 0.3s;
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .user-menu {
@@ -211,7 +265,7 @@ body {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #0366d6;
+  background: var(--accent-color);
   color: #fff;
   border: none;
   font-size: 16px;
@@ -220,7 +274,7 @@ body {
 }
 
 .login-link {
-  color: #0366d6;
+  color: var(--accent-color);
   text-decoration: none;
   font-weight: 600;
 }

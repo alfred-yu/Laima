@@ -77,29 +77,32 @@ const pipelines = ref([
 
 .btn {
   padding: 8px 16px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
-  background: #fff;
-  color: #333;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.3s;
 }
 
 .btn.primary {
-  background: #0366d6;
+  background: var(--accent-color);
   color: #fff;
-  border-color: #0366d6;
+  border-color: var(--accent-color);
 }
 
 .btn.primary:hover {
-  background: #0056b3;
+  opacity: 0.9;
 }
 
 .filter-options select {
   padding: 8px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 14px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: border-color 0.3s, background-color 0.3s, color 0.3s;
 }
 
 .pipelines-list {
@@ -113,10 +116,10 @@ const pipelines = ref([
   justify-content: space-between;
   align-items: center;
   padding: 16px;
-  background: #fff;
+  background: var(--bg-secondary);
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s;
+  transition: transform 0.2s, background-color 0.3s, box-shadow 0.3s;
 }
 
 .pipeline-item:hover {
@@ -131,7 +134,8 @@ const pipelines = ref([
 .pipeline-name {
   margin: 0 0 8px 0;
   font-size: 16px;
-  color: #333;
+  color: var(--text-primary);
+  transition: color 0.3s;
 }
 
 .pipeline-meta {
@@ -139,7 +143,8 @@ const pipelines = ref([
   flex-wrap: wrap;
   gap: 16px;
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
+  transition: color 0.3s;
 }
 
 .pipeline-status {
@@ -150,17 +155,17 @@ const pipelines = ref([
 }
 
 .pipeline-status.running {
-  background: #fff3cd;
-  color: #856404;
+  background: var(--warning-color);
+  color: #fff;
 }
 
 .pipeline-status.success {
-  background: #d1e7dd;
-  color: #0f5132;
+  background: var(--success-color);
+  color: #fff;
 }
 
 .pipeline-status.failed {
-  background: #f8d7da;
-  color: #842029;
+  background: var(--danger-color);
+  color: #fff;
 }
 </style>

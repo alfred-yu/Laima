@@ -86,7 +86,8 @@ const pipeline = ref({
   gap: 16px;
   margin: 16px 0;
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
+  transition: color 0.3s;
 }
 
 .pipeline-status {
@@ -97,18 +98,18 @@ const pipeline = ref({
 }
 
 .pipeline-status.running {
-  background: #fff3cd;
-  color: #856404;
+  background: var(--warning-color);
+  color: #fff;
 }
 
 .pipeline-status.success {
-  background: #d1e7dd;
-  color: #0f5132;
+  background: var(--success-color);
+  color: #fff;
 }
 
 .pipeline-status.failed {
-  background: #f8d7da;
-  color: #842029;
+  background: var(--danger-color);
+  color: #fff;
 }
 
 .pipeline-content {
@@ -122,7 +123,8 @@ const pipeline = ref({
 .pipeline-jobs h2 {
   margin: 0 0 16px 0;
   font-size: 18px;
-  color: #333;
+  color: var(--text-primary);
+  transition: color 0.3s;
 }
 
 .jobs-list {
@@ -136,9 +138,10 @@ const pipeline = ref({
   justify-content: space-between;
   align-items: center;
   padding: 16px;
-  background: #fff;
+  background: var(--bg-secondary);
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.3s, box-shadow 0.3s;
 }
 
 .job-info {
@@ -148,14 +151,16 @@ const pipeline = ref({
 .job-name {
   margin: 0 0 8px 0;
   font-size: 16px;
-  color: #333;
+  color: var(--text-primary);
+  transition: color 0.3s;
 }
 
 .job-meta {
   display: flex;
   gap: 12px;
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
+  transition: color 0.3s;
 }
 
 .job-status {
@@ -166,52 +171,55 @@ const pipeline = ref({
 }
 
 .job-status.success {
-  background: #d1e7dd;
-  color: #0f5132;
+  background: var(--success-color);
+  color: #fff;
 }
 
 .job-status.running {
-  background: #fff3cd;
-  color: #856404;
+  background: var(--warning-color);
+  color: #fff;
 }
 
 .job-status.pending {
-  background: #e9ecef;
-  color: #495057;
+  background: var(--border-color);
+  color: var(--text-secondary);
+  transition: background-color 0.3s, color 0.3s;
 }
 
 .job-status.failed {
-  background: #f8d7da;
-  color: #842029;
+  background: var(--danger-color);
+  color: #fff;
 }
 
 .btn {
   padding: 6px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
-  background: #fff;
-  color: #333;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.3s;
   font-size: 14px;
 }
 
 .btn:hover {
-  background: #f5f5f5;
+  background: var(--bg-secondary);
 }
 
 .pipeline-logs h2 {
   margin: 0 0 16px 0;
   font-size: 18px;
-  color: #333;
+  color: var(--text-primary);
+  transition: color 0.3s;
 }
 
 .logs-content {
-  background: #f8f9fa;
+  background: var(--bg-primary);
   border-radius: 8px;
   padding: 16px;
   overflow: auto;
   max-height: 400px;
+  transition: background-color 0.3s;
 }
 
 .logs-content pre {
@@ -219,6 +227,7 @@ const pipeline = ref({
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 14px;
   line-height: 1.5;
-  color: #333;
+  color: var(--text-primary);
+  transition: color 0.3s;
 }
 </style>

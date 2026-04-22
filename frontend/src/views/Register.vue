@@ -103,23 +103,26 @@ const handleRegister = async () => {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: #f5f5f5;
+  background: var(--bg-primary);
+  transition: background-color 0.3s;
 }
 
 .register-form {
-  background: #fff;
+  background: var(--bg-secondary);
   border-radius: 8px;
   padding: 40px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   width: 100%;
   max-width: 400px;
+  transition: background-color 0.3s, box-shadow 0.3s;
 }
 
 .register-form h1 {
   margin-top: 0;
   margin-bottom: 30px;
   text-align: center;
-  color: #333;
+  color: var(--text-primary);
+  transition: color 0.3s;
 }
 
 .form-group {
@@ -130,28 +133,31 @@ const handleRegister = async () => {
   display: block;
   margin-bottom: 8px;
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
+  transition: color 0.3s;
 }
 
 .form-group input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 14px;
-  transition: border-color 0.3s;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: border-color 0.3s, background-color 0.3s, color 0.3s;
 }
 
 .form-group input:focus {
   outline: none;
-  border-color: #0366d6;
+  border-color: var(--accent-color);
   box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.1);
 }
 
 .register-button {
   width: 100%;
   padding: 12px;
-  background: #0366d6;
+  background: var(--accent-color);
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -163,33 +169,37 @@ const handleRegister = async () => {
 }
 
 .register-button:hover {
-  background: #0056b3;
+  background: var(--accent-color);
+  opacity: 0.9;
 }
 
 .register-button:disabled {
-  background: #6c757d;
+  background: var(--border-color);
   cursor: not-allowed;
 }
 
 .error-message {
   margin-top: 16px;
   padding: 10px;
-  background: #f8d7da;
-  color: #842029;
+  background: var(--danger-color);
+  color: #fff;
   border-radius: 4px;
   font-size: 14px;
+  transition: background-color 0.3s, color 0.3s;
 }
 
 .login-link {
   margin-top: 20px;
   text-align: center;
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
+  transition: color 0.3s;
 }
 
 .login-link a {
-  color: #0366d6;
+  color: var(--accent-color);
   text-decoration: none;
+  transition: color 0.3s;
 }
 
 .login-link a:hover {

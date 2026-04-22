@@ -45,7 +45,8 @@ const repoName = computed(() => `${owner.value}/${repo.value}`)
 .repo-header h1 {
   margin: 0;
   font-size: 24px;
-  color: #333;
+  color: var(--text-primary);
+  transition: color 0.3s;
 }
 
 .repo-actions {
@@ -55,50 +56,51 @@ const repoName = computed(() => `${owner.value}/${repo.value}`)
 
 .btn {
   padding: 6px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
-  background: #fff;
-  color: #333;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.3s;
 }
 
 .btn:hover {
-  background: #f5f5f5;
+  background: var(--bg-secondary);
 }
 
 .btn.primary {
-  background: #0366d6;
+  background: var(--accent-color);
   color: #fff;
-  border-color: #0366d6;
+  border-color: var(--accent-color);
 }
 
 .btn.primary:hover {
-  background: #0056b3;
+  opacity: 0.9;
 }
 
 .repo-tabs {
   display: flex;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--border-color);
   margin-bottom: 20px;
+  transition: border-color 0.3s;
 }
 
 .tab {
   padding: 10px 20px;
   text-decoration: none;
-  color: #666;
+  color: var(--text-secondary);
   border-bottom: 2px solid transparent;
   transition: all 0.3s;
 }
 
 .tab:hover {
-  color: #333;
-  background: #f5f5f5;
+  color: var(--text-primary);
+  background: var(--bg-primary);
 }
 
 .tab.router-link-active {
-  color: #0366d6;
-  border-bottom-color: #0366d6;
+  color: var(--accent-color);
+  border-bottom-color: var(--accent-color);
   font-weight: 600;
 }
 

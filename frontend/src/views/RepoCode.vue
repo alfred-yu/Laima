@@ -102,9 +102,12 @@ const currentFile = ref({
 
 .branch-selector select {
   padding: 8px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 14px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: border-color 0.3s, background-color 0.3s, color 0.3s;
 }
 
 .code-actions {
@@ -114,16 +117,16 @@ const currentFile = ref({
 
 .btn {
   padding: 6px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
-  background: #fff;
-  color: #333;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.3s;
 }
 
 .btn:hover {
-  background: #f5f5f5;
+  background: var(--bg-secondary);
 }
 
 .code-content {
@@ -134,15 +137,17 @@ const currentFile = ref({
 
 .file-tree {
   width: 300px;
-  background: #f8f9fa;
+  background: var(--bg-secondary);
   border-radius: 8px;
   padding: 20px;
+  transition: background-color 0.3s;
 }
 
 .file-tree-header h3 {
   margin: 0 0 20px 0;
   font-size: 16px;
-  color: #333;
+  color: var(--text-primary);
+  transition: color 0.3s;
 }
 
 .file-list {
@@ -160,7 +165,7 @@ const currentFile = ref({
 }
 
 .file-item:hover {
-  background: #e9ecef;
+  background: var(--bg-primary);
 }
 
 .file-icon {
@@ -170,15 +175,17 @@ const currentFile = ref({
 
 .file-name {
   font-size: 14px;
-  color: #333;
+  color: var(--text-primary);
+  transition: color 0.3s;
 }
 
 .file-content {
   flex: 1;
-  background: #fff;
+  background: var(--bg-secondary);
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.3s, box-shadow 0.3s;
 }
 
 .file-header {
@@ -187,13 +194,15 @@ const currentFile = ref({
   align-items: center;
   margin-bottom: 20px;
   padding-bottom: 10px;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--border-color);
+  transition: border-color 0.3s;
 }
 
 .file-header h2 {
   margin: 0;
   font-size: 18px;
-  color: #333;
+  color: var(--text-primary);
+  transition: color 0.3s;
 }
 
 .file-actions {
@@ -202,11 +211,12 @@ const currentFile = ref({
 }
 
 .code-editor {
-  background: #f8f9fa;
+  background: var(--bg-primary);
   border-radius: 4px;
   padding: 20px;
   overflow: auto;
   max-height: 500px;
+  transition: background-color 0.3s;
 }
 
 .code-editor pre {
@@ -214,6 +224,7 @@ const currentFile = ref({
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 14px;
   line-height: 1.5;
-  color: #333;
+  color: var(--text-primary);
+  transition: color 0.3s;
 }
 </style>

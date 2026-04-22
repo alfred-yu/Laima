@@ -89,19 +89,27 @@ onMounted(() => {
 
 .create-repo-btn {
   padding: 8px 16px;
-  background: #0366d6;
+  background: var(--accent-color);
   color: #fff;
   border: none;
   border-radius: 4px;
   font-weight: 600;
   cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.create-repo-btn:hover {
+  opacity: 0.9;
 }
 
 .filter-options select {
   padding: 8px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 14px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: border-color 0.3s, background-color 0.3s, color 0.3s;
 }
 
 .repo-grid {
@@ -111,11 +119,11 @@ onMounted(() => {
 }
 
 .repo-card {
-  background: #fff;
+  background: var(--bg-secondary);
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s;
+  transition: transform 0.2s, background-color 0.3s, box-shadow 0.3s;
 }
 
 .repo-card:hover {
@@ -133,7 +141,8 @@ onMounted(() => {
 .repo-name {
   margin: 0;
   font-size: 18px;
-  color: #0366d6;
+  color: var(--accent-color);
+  transition: color 0.3s;
 }
 
 .repo-visibility {
@@ -144,19 +153,20 @@ onMounted(() => {
 }
 
 .repo-visibility.public {
-  background: #d1e7dd;
-  color: #0f5132;
+  background: var(--success-color);
+  color: #fff;
 }
 
 .repo-visibility.private {
-  background: #f8d7da;
-  color: #842029;
+  background: var(--danger-color);
+  color: #fff;
 }
 
 .repo-description {
   margin: 10px 0;
-  color: #666;
+  color: var(--text-secondary);
   font-size: 14px;
+  transition: color 0.3s;
 }
 
 .repo-stats {
@@ -164,7 +174,8 @@ onMounted(() => {
   gap: 16px;
   margin: 10px 0;
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
+  transition: color 0.3s;
 }
 
 .repo-actions {
@@ -175,10 +186,10 @@ onMounted(() => {
 
 .btn {
   padding: 6px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
-  background: #fff;
-  color: #333;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   text-decoration: none;
   font-size: 14px;
   cursor: pointer;
@@ -186,10 +197,10 @@ onMounted(() => {
 }
 
 .btn:hover {
-  background: #f5f5f5;
+  background: var(--bg-secondary);
 }
 
 .btn.secondary {
-  background: #f5f5f5;
+  background: var(--bg-secondary);
 }
 </style>

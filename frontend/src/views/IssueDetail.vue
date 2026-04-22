@@ -70,7 +70,8 @@ const issue = ref({
   gap: 16px;
   margin: 16px 0;
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
+  transition: color 0.3s;
 }
 
 .issue-status {
@@ -81,13 +82,13 @@ const issue = ref({
 }
 
 .issue-status.open {
-  background: #d1e7dd;
-  color: #0f5132;
+  background: var(--success-color);
+  color: #fff;
 }
 
 .issue-status.closed {
-  background: #f8d7da;
-  color: #842029;
+  background: var(--danger-color);
+  color: #fff;
 }
 
 .issue-labels {
@@ -101,8 +102,9 @@ const issue = ref({
   padding: 2px 8px;
   border-radius: 12px;
   font-size: 12px;
-  background: #e9ecef;
-  color: #495057;
+  background: var(--border-color);
+  color: var(--text-secondary);
+  transition: background-color 0.3s, color 0.3s;
 }
 
 .issue-content {
@@ -110,22 +112,25 @@ const issue = ref({
 }
 
 .issue-description {
-  background: #f8f9fa;
+  background: var(--bg-primary);
   padding: 20px;
   border-radius: 8px;
   margin-bottom: 24px;
+  transition: background-color 0.3s;
 }
 
 .issue-description p {
   margin: 0;
   line-height: 1.6;
-  color: #333;
+  color: var(--text-primary);
+  transition: color 0.3s;
 }
 
 .issue-comments h2 {
   margin: 0 0 16px 0;
   font-size: 18px;
-  color: #333;
+  color: var(--text-primary);
+  transition: color 0.3s;
 }
 
 .comment-list {
@@ -136,27 +141,31 @@ const issue = ref({
 }
 
 .comment-item {
-  background: #fff;
+  background: var(--bg-secondary);
   padding: 16px;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.3s, box-shadow 0.3s;
 }
 
 .comment-author {
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
   margin-bottom: 8px;
+  transition: color 0.3s;
 }
 
 .comment-content {
   line-height: 1.6;
-  color: #333;
+  color: var(--text-primary);
   margin-bottom: 8px;
+  transition: color 0.3s;
 }
 
 .comment-time {
   font-size: 12px;
-  color: #999;
+  color: var(--text-secondary);
+  transition: color 0.3s;
 }
 
 .comment-form {
@@ -168,31 +177,34 @@ const issue = ref({
 .comment-form textarea {
   width: 100%;
   padding: 12px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 14px;
   resize: vertical;
   min-height: 100px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: border-color 0.3s, background-color 0.3s, color 0.3s;
 }
 
 .btn {
   padding: 8px 16px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
-  background: #fff;
-  color: #333;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.3s;
   align-self: flex-start;
 }
 
 .btn.primary {
-  background: #0366d6;
+  background: var(--accent-color);
   color: #fff;
-  border-color: #0366d6;
+  border-color: var(--accent-color);
 }
 
 .btn.primary:hover {
-  background: #0056b3;
+  opacity: 0.9;
 }
 </style>

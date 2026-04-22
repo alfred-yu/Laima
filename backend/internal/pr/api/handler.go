@@ -1,6 +1,7 @@
 package api
 
 import (
+	"laima/internal/git"
 	"laima/internal/pr/app"
 	"laima/internal/pr/domain"
 	"net/http"
@@ -17,9 +18,9 @@ type PRAPI struct {
 }
 
 // NewPRAPI 创建PR API实例
-func NewPRAPI(db *gorm.DB) *PRAPI {
+func NewPRAPI(db *gorm.DB, gitSvc *git.Service) *PRAPI {
 	return &PRAPI{
-		prService: app.NewPRService(db),
+		prService: app.NewPRService(db, gitSvc),
 		db:        db,
 	}
 }

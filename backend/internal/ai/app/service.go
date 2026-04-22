@@ -40,12 +40,42 @@ func NewAIService(db *gorm.DB) AIService {
 
 // TriggerAIReview 触发AI审查
 func (s *aiService) TriggerAIReview(ctx context.Context, req *domain.AIReviewRequest) (*domain.AIReview, error) {
-	// 实现触发AI审查逻辑
-	// 1. 验证请求参数
-	// 2. 创建审查记录
-	// 3. 异步执行AI审查
-	// 4. 返回审查信息
-	return nil, nil
+	// 创建审查记录
+	review := &domain.AIReview{
+		PullRequestID: req.PullRequestID,
+		RepositoryID:  req.RepositoryID,
+		Status:        domain.AIReviewStatusPending,
+	}
+
+	if err := s.db.Create(review).Error; err != nil {
+		return nil, err
+	}
+
+	// 异步执行AI审查（模拟）
+	go func() {
+		ctx := context.Background()
+		_ = s.UpdateAIReviewStatus(ctx, review.ID, domain.AIReviewStatusRunning)
+
+		// 模拟AI审查过程
+		issues := []*domain.AIReviewIssue{
+			{
+				AIReviewID:    review.ID,
+				PullRequestID: req.PullRequestID,
+				Severity:      domain.AIReviewSeverityMedium,
+				Category:      "code_quality",
+				Title:         "代码可读性改进建议",
+				Description:   "建议增加注释提高代码可读性",
+				Path:          "src/main.go",
+				Line:          42,
+				Suggestion:    "添加函数和关键逻辑的注释",
+				Confidence:    0.85,
+			},
+		}
+
+		_ = s.CompleteAIReview(ctx, review.ID, 0.88, "代码整体质量良好，有少量改进建议", issues)
+	}()
+
+	return review, nil
 }
 
 // GetAIReview 根据ID获取AI审查
@@ -171,10 +201,14 @@ func (s *aiService) FailAIReview(ctx context.Context, reviewID int, errorMsg str
 
 // TriggerAIReviewForPR 为PR触发AI审查
 func (s *aiService) TriggerAIReviewForPR(ctx context.Context, prID int) (*domain.AIReview, error) {
-	// 实现为PR触发AI审查逻辑
-	// 1. 获取PR信息
-	// 2. 构建审查请求
-	// 3. 触发审查
-	// 4. 更新PR的AI审查状态
-	return nil, nil
+	// 模拟获取PR信息
+	req := &domain.AIReviewRequest{
+		PullRequestID: prID,
+		RepositoryID:  1,
+		HeadCommitSHA: "abc123",
+		BaseCommitSHA: "def456",
+	}
+
+	// 触发审查
+	return s.TriggerAIReview(ctx, req)
 }

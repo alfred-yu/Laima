@@ -4,35 +4,36 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"laima/internal/repo/domain"
-	"laima/internal/user/domain"
-	"strings"
+	"laima/internal/git"
+	repodomain "laima/internal/repo/domain"
+	userdomain "laima/internal/user/domain"
 
 	"gorm.io/gorm"
 )
 
 // repoService 仓库服务实现
 type repoService struct {
-	db *gorm.DB
+	db       *gorm.DB
+	gitSvc   *git.Service
 }
 
 // NewRepoService 创建仓库服务实例
-func NewRepoService(db *gorm.DB) RepoService {
-	return &repoService{db: db}
+func NewRepoService(db *gorm.DB, gitSvc *git.Service) RepoService {
+	return &repoService{db: db, gitSvc: gitSvc}
 }
 
 // generateFullPath 生成完整仓库路径
-func (s *repoService) generateFullPath(ownerType domain.OwnerType, ownerID int64, name string) (string, error) {
+func (s *repoService) generateFullPath(ownerType repodomain.OwnerType, ownerID int64, name string) (string, error) {
 	var ownerName string
 	switch ownerType {
-	case domain.OwnerTypeUser:
-		var user domain.User
+	case repodomain.OwnerTypeUser:
+		var user userdomain.User
 		if err := s.db.First(&user, ownerID).Error; err != nil {
 			return "", err
 		}
 		ownerName = user.Username
-	case domain.OwnerTypeOrg:
-		var org domain.Organization
+	case repodomain.OwnerTypeOrg:
+		var org userdomain.Organization
 		if err := s.db.First(&org, ownerID).Error; err != nil {
 			return "", err
 		}
@@ -44,15 +45,18 @@ func (s *repoService) generateFullPath(ownerType domain.OwnerType, ownerID int64
 }
 
 // CreateRepo 创建仓库
-func (s *repoService) CreateRepo(ctx context.Context, req *CreateRepoRequest) (*domain.Repository, error) {
-	// 生成完整路径
-	fullPath, err := s.generateFullPath(req.OwnerType, req.OwnerID, req.Name)
+func (s *repoService) CreateRepo(ctx context.Context, req *CreateRepoRequest) (*repodomain.Repository, error) {
+	// 获取所有者名称
+	ownerName, err := s.getOwnerName(req.OwnerType, req.OwnerID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate full path: %v", err)
+		return nil, err
 	}
 
+	// 生成完整路径
+	fullPath := fmt.Sprintf("%s/%s", ownerName, req.Name)
+
 	// 检查仓库是否已存在
-	var existingRepo domain.Repository
+	var existingRepo repodomain.Repository
 	result := s.db.Where("full_path = ?", fullPath).First(&existingRepo)
 	if result.Error == nil {
 		return nil, errors.New("repository already exists")
@@ -61,13 +65,13 @@ func (s *repoService) CreateRepo(ctx context.Context, req *CreateRepoRequest) (*
 	}
 
 	// 设置默认可见性
-	visibility := domain.VisibilityPrivate
+	visibility := repodomain.VisibilityPrivate
 	if req.Visibility != "" {
-		visibility = domain.Visibility(req.Visibility)
+		visibility = repodomain.Visibility(req.Visibility)
 	} else if req.IsPrivate {
-		visibility = domain.VisibilityPrivate
+		visibility = repodomain.VisibilityPrivate
 	} else {
-		visibility = domain.VisibilityPublic
+		visibility = repodomain.VisibilityPublic
 	}
 
 	// 设置默认分支
@@ -76,8 +80,8 @@ func (s *repoService) CreateRepo(ctx context.Context, req *CreateRepoRequest) (*
 		defaultBranch = req.DefaultBranch
 	}
 
-	// 创建仓库记录
-	repo := &domain.Repository{
+	// 创建数据库记录
+	repo := &repodomain.Repository{
 		Name:          req.Name,
 		FullPath:      fullPath,
 		Description:   req.Description,
@@ -88,28 +92,58 @@ func (s *repoService) CreateRepo(ctx context.Context, req *CreateRepoRequest) (*
 		Settings:      req.Settings,
 	}
 
-	if err := s.db.Create(repo).Error; err != nil {
-		return nil, err
-	}
-
-	// 如果需要自动初始化，创建默认分支
-	if req.AutoInit {
-		defaultBranch := &domain.Branch{
-			RepositoryID: repo.ID,
-			Name:         repo.DefaultBranch,
-			CommitSHA:    "0000000000000000000000000000000000000000",
+	// 使用事务，确保数据库和 Git 仓库同时创建成功
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(repo).Error; err != nil {
+			return err
 		}
-		if err := s.db.Create(defaultBranch).Error; err != nil {
-			return nil, err
-		}
-	}
 
-	return repo, nil
+		// 创建 Git 仓库
+		if err := s.gitSvc.CreateRepo(ctx, ownerName, req.Name, req.AutoInit); err != nil {
+			return err
+		}
+
+		// 如果需要自动初始化，创建默认分支记录
+		if req.AutoInit {
+			defaultBranch := &repodomain.Branch{
+				RepositoryID: repo.ID,
+				Name:         repo.DefaultBranch,
+				CommitSHA:    "", // 暂时为空，后续可以更新
+			}
+			if err := tx.Create(defaultBranch).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	return repo, err
+}
+
+// getOwnerName 获取所有者名称
+func (s *repoService) getOwnerName(ownerType repodomain.OwnerType, ownerID int64) (string, error) {
+	switch ownerType {
+	case repodomain.OwnerTypeUser:
+		var user userdomain.User
+		if err := s.db.First(&user, ownerID).Error; err != nil {
+			return "", err
+		}
+		return user.Username, nil
+	case repodomain.OwnerTypeOrg:
+		var org userdomain.Organization
+		if err := s.db.First(&org, ownerID).Error; err != nil {
+			return "", err
+		}
+		return org.Name, nil
+	default:
+		return "", errors.New("invalid owner type")
+	}
 }
 
 // GetRepo 根据ID获取仓库
-func (s *repoService) GetRepo(ctx context.Context, repoID int64) (*domain.Repository, error) {
-	var repo domain.Repository
+func (s *repoService) GetRepo(ctx context.Context, repoID int64) (*repodomain.Repository, error) {
+	var repo repodomain.Repository
 	result := s.db.First(&repo, repoID)
 	if result.Error != nil {
 		return nil, result.Error
@@ -118,8 +152,8 @@ func (s *repoService) GetRepo(ctx context.Context, repoID int64) (*domain.Reposi
 }
 
 // GetRepoByPath 根据路径获取仓库
-func (s *repoService) GetRepoByPath(ctx context.Context, fullPath string) (*domain.Repository, error) {
-	var repo domain.Repository
+func (s *repoService) GetRepoByPath(ctx context.Context, fullPath string) (*repodomain.Repository, error) {
+	var repo repodomain.Repository
 	result := s.db.Where("full_path = ?", fullPath).First(&repo)
 	if result.Error != nil {
 		return nil, result.Error
@@ -128,8 +162,8 @@ func (s *repoService) GetRepoByPath(ctx context.Context, fullPath string) (*doma
 }
 
 // UpdateRepo 更新仓库
-func (s *repoService) UpdateRepo(ctx context.Context, repoID int64, req *UpdateRepoRequest) (*domain.Repository, error) {
-	var repo domain.Repository
+func (s *repoService) UpdateRepo(ctx context.Context, repoID int64, req *UpdateRepoRequest) (*repodomain.Repository, error) {
+	var repo repodomain.Repository
 	if err := s.db.First(&repo, repoID).Error; err != nil {
 		return nil, err
 	}
@@ -148,9 +182,7 @@ func (s *repoService) UpdateRepo(ctx context.Context, repoID int64, req *UpdateR
 	if req.DefaultBranch != "" {
 		updates["default_branch"] = req.DefaultBranch
 	}
-	if req.Settings != nil {
-		updates["settings"] = req.Settings
-	}
+	updates["settings"] = req.Settings
 
 	if len(updates) > 0 {
 		if err := s.db.Model(&repo).Updates(updates).Error; err != nil {
@@ -163,15 +195,15 @@ func (s *repoService) UpdateRepo(ctx context.Context, repoID int64, req *UpdateR
 
 // DeleteRepo 删除仓库
 func (s *repoService) DeleteRepo(ctx context.Context, repoID int64) error {
-	return s.db.Delete(&domain.Repository{}, repoID).Error
+	return s.db.Delete(&repodomain.Repository{}, repoID).Error
 }
 
 // ListRepos 列出仓库
-func (s *repoService) ListRepos(ctx context.Context, filter *RepoFilter) ([]*domain.Repository, int64, error) {
-	var repos []*domain.Repository
+func (s *repoService) ListRepos(ctx context.Context, filter *RepoFilter) ([]*repodomain.Repository, int64, error) {
+	var repos []*repodomain.Repository
 	var total int64
 
-	query := s.db.Model(&domain.Repository{})
+	query := s.db.Model(&repodomain.Repository{})
 
 	// 应用过滤条件
 	if filter.OwnerID > 0 {
@@ -201,7 +233,7 @@ func (s *repoService) ListRepos(ctx context.Context, filter *RepoFilter) ([]*dom
 }
 
 // ForkRepo Fork 仓库
-func (s *repoService) ForkRepo(ctx context.Context, repoID int64, targetNamespace string) (*domain.Repository, error) {
+func (s *repoService) ForkRepo(ctx context.Context, repoID int64, targetNamespace string) (*repodomain.Repository, error) {
 	// 实现 Fork 逻辑
 	// 1. 获取源仓库信息
 	// 2. 创建新仓库记录
@@ -220,7 +252,7 @@ func (s *repoService) ImportRepo(ctx context.Context, req *ImportRepoRequest) (*
 }
 
 // CreateBranch 创建分支
-func (s *repoService) CreateBranch(ctx context.Context, repoID int64, req *CreateBranchRequest) (*domain.Branch, error) {
+func (s *repoService) CreateBranch(ctx context.Context, repoID int64, req *CreateBranchRequest) (*repodomain.Branch, error) {
 	// 实现创建分支逻辑
 	// 1. 验证仓库存在
 	// 2. 检查分支是否已存在
@@ -241,8 +273,8 @@ func (s *repoService) DeleteBranch(ctx context.Context, repoID int64, branch str
 }
 
 // ListBranches 列出分支
-func (s *repoService) ListBranches(ctx context.Context, repoID int64) ([]*domain.Branch, error) {
-	var branches []*domain.Branch
+func (s *repoService) ListBranches(ctx context.Context, repoID int64) ([]*repodomain.Branch, error) {
+	var branches []*repodomain.Branch
 	result := s.db.Where("repository_id = ?", repoID).Find(&branches)
 	if result.Error != nil {
 		return nil, result.Error
@@ -251,7 +283,7 @@ func (s *repoService) ListBranches(ctx context.Context, repoID int64) ([]*domain
 }
 
 // ProtectBranch 保护分支
-func (s *repoService) ProtectBranch(ctx context.Context, repoID int64, rule *domain.BranchProtection) error {
+func (s *repoService) ProtectBranch(ctx context.Context, repoID int64, rule *repodomain.BranchProtection) error {
 	// 实现分支保护逻辑
 	// 1. 验证仓库存在
 	// 2. 保存分支保护规则
@@ -259,7 +291,7 @@ func (s *repoService) ProtectBranch(ctx context.Context, repoID int64, rule *dom
 }
 
 // CreateTag 创建标签
-func (s *repoService) CreateTag(ctx context.Context, repoID int64, req *CreateTagRequest) (*domain.Tag, error) {
+func (s *repoService) CreateTag(ctx context.Context, repoID int64, req *CreateTagRequest) (*repodomain.Tag, error) {
 	// 实现创建标签逻辑
 	// 1. 验证仓库存在
 	// 2. 检查标签是否已存在
@@ -280,8 +312,8 @@ func (s *repoService) DeleteTag(ctx context.Context, repoID int64, tagName strin
 }
 
 // ListTags 列出标签
-func (s *repoService) ListTags(ctx context.Context, repoID int64) ([]*domain.Tag, error) {
-	var tags []*domain.Tag
+func (s *repoService) ListTags(ctx context.Context, repoID int64) ([]*repodomain.Tag, error) {
+	var tags []*repodomain.Tag
 	result := s.db.Where("repository_id = ?", repoID).Find(&tags)
 	if result.Error != nil {
 		return nil, result.Error

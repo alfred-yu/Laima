@@ -48,12 +48,29 @@ func NewIssueService(db *gorm.DB) IssueService {
 
 // CreateIssue 创建Issue
 func (s *issueService) CreateIssue(ctx context.Context, req *domain.CreateIssueRequest, authorID int) (*domain.Issue, error) {
-	// 实现创建Issue逻辑
-	// 1. 验证请求参数
-	// 2. 生成Issue编号
-	// 3. 创建Issue记录
-	// 4. 返回Issue信息
-	return nil, nil
+	// 生成Issue编号
+	var maxNumber int
+	s.db.Model(&domain.Issue{}).Where("repository_id = ?", req.RepositoryID).Select("COALESCE(MAX(number), 0)").Scan(&maxNumber)
+	issueNumber := maxNumber + 1
+
+	// 创建Issue记录
+	issue := &domain.Issue{
+		Number:       issueNumber,
+		Title:        req.Title,
+		Description:  req.Description,
+		RepositoryID: req.RepositoryID,
+		AuthorID:     authorID,
+		AssigneeID:   req.AssigneeID,
+		State:        domain.IssueStatusOpen,
+		MilestoneID:  req.MilestoneID,
+		Priority:     req.Priority,
+	}
+
+	if err := s.db.Create(issue).Error; err != nil {
+		return nil, err
+	}
+
+	return issue, nil
 }
 
 // GetIssue 根据ID获取Issue
@@ -211,11 +228,24 @@ func (s *issueService) AssignIssue(ctx context.Context, issueID int, assigneeID 
 
 // CreateComment 创建评论
 func (s *issueService) CreateComment(ctx context.Context, issueID int, req *domain.IssueCommentRequest, authorID int) (*domain.IssueComment, error) {
-	// 实现创建评论逻辑
-	// 1. 验证Issue存在
-	// 2. 创建评论记录
-	// 3. 返回评论信息
-	return nil, nil
+	// 验证Issue存在
+	var issue domain.Issue
+	if err := s.db.First(&issue, issueID).Error; err != nil {
+		return nil, err
+	}
+
+	// 创建评论记录
+	comment := &domain.IssueComment{
+		IssueID:  issueID,
+		AuthorID: authorID,
+		Body:     req.Body,
+	}
+
+	if err := s.db.Create(comment).Error; err != nil {
+		return nil, err
+	}
+
+	return comment, nil
 }
 
 // GetComments 获取评论列表
@@ -250,11 +280,24 @@ func (s *issueService) DeleteComment(ctx context.Context, commentID int) error {
 
 // CreateMilestone 创建里程碑
 func (s *issueService) CreateMilestone(ctx context.Context, repoID int, req *domain.MilestoneRequest) (*domain.Milestone, error) {
-	// 实现创建里程碑逻辑
-	// 1. 验证请求参数
-	// 2. 创建里程碑记录
-	// 3. 返回里程碑信息
-	return nil, nil
+	// 创建里程碑记录
+	milestone := &domain.Milestone{
+		RepositoryID: repoID,
+		Title:        req.Title,
+		Description:  req.Description,
+		DueDate:      req.DueDate,
+		State:        domain.IssueStatusOpen,
+	}
+
+	if req.State != "" {
+		milestone.State = req.State
+	}
+
+	if err := s.db.Create(milestone).Error; err != nil {
+		return nil, err
+	}
+
+	return milestone, nil
 }
 
 // GetMilestone 根据ID获取里程碑

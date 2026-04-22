@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	repoapi "laima/internal/repo/api"
 	userapi "laima/internal/user/api"
@@ -12,11 +13,13 @@ import (
 	aiapi "laima/internal/ai/api"
 	cicdapi "laima/internal/cicd/api"
 	issueapi "laima/internal/issue/api"
+	"laima/internal/git"
 	"laima/internal/user/domain"
 	repodomain "laima/internal/repo/domain"
 	prdomain "laima/internal/pr/domain"
 	issuedomain "laima/internal/issue/domain"
 	cicddomain "laima/internal/cicd/domain"
+	aidomain "laima/internal/ai/domain"
 
 	"github.com/gin-gonic/gin"
 	"github.com/minio/minio-go/v7"
@@ -53,10 +56,14 @@ func main() {
 	}
 
 	// 初始化 Meilisearch 客户端
-	meiliClient, err := initMeilisearch()
+	var meiliClient meilisearch.ServiceManager
+	meiliClient, err = initMeilisearch()
 	if err != nil {
 		log.Fatalf("Failed to connect to Meilisearch: %v", err)
 	}
+
+	// 初始化 Git 服务
+	gitSvc := initGitService()
 
 	// 设置 Gin 模式
 	if os.Getenv("GIN_MODE") == "release" {
@@ -82,13 +89,13 @@ func main() {
 	})
 
 	// 注册 API 路由
-	repoAPI := repoapi.NewRepoAPI(db, redisClient, minioClient, meiliClient)
+	repoAPI := repoapi.NewRepoAPI(db, redisClient, minioClient, meiliClient, gitSvc)
 	repoAPI.RegisterRoutes(r)
 
 	userAPI := userapi.NewUserAPI(db, redisClient)
 	userAPI.RegisterRoutes(r)
 
-	prAPI := prapi.NewPRAPI(db)
+	prAPI := prapi.NewPRAPI(db, gitSvc)
 	prAPI.RegisterRoutes(r)
 
 	aiAPI := aiapi.NewAIApi(db)
@@ -97,7 +104,7 @@ func main() {
 	cicdAPI := cicdapi.NewCICDApi(db)
 	cicdAPI.RegisterRoutes(r)
 
-	issueAPI := issueapi.NewIssueAPI(db)
+	issueAPI := issueapi.NewIssueApi(db)
 	issueAPI.RegisterRoutes(r)
 
 	// 健康检查
@@ -129,13 +136,34 @@ func autoMigrate(db *gorm.DB) error {
 		&domain.RepositoryMember{},
 		&repodomain.Repository{},
 		&prdomain.PullRequest{},
-		&prdomain.PRComment{},
+		&prdomain.Review{},
+		&prdomain.ReviewComment{},
 		&issuedomain.Issue{},
 		&issuedomain.IssueComment{},
+		&issuedomain.Milestone{},
 		&cicddomain.Pipeline{},
-		&cicddomain.PipelineRun{},
-		&cicddomain.PipelineJob{},
+		&cicddomain.Job{},
+		&aidomain.AIReview{},
+		&aidomain.AIReviewIssue{},
 	)
+}
+
+// initGitService 初始化 Git 服务
+func initGitService() *git.Service {
+	// 获取仓库存储路径
+	repoPath := os.Getenv("LAIMA_REPO_PATH")
+	if repoPath == "" {
+		// 默认路径为当前工作目录下的 repos 文件夹
+		cwd, _ := os.Getwd()
+		repoPath = filepath.Join(cwd, "repos")
+	}
+
+	// 确保目录存在
+	if err := os.MkdirAll(repoPath, 0755); err != nil {
+		log.Fatalf("Failed to create repo directory: %v", err)
+	}
+
+	return git.NewService(repoPath)
 }
 
 // 初始化数据库连接
@@ -242,24 +270,20 @@ func initMinIO() (*minio.Client, error) {
 }
 
 // 初始化 Meilisearch 客户端
-func initMeilisearch() (*meilisearch.Client, error) {
+func initMeilisearch() (meilisearch.ServiceManager, error) {
 	meiliURL := os.Getenv("LAIMA_MEILISEARCH_URL")
 	if meiliURL == "" {
 		meiliURL = "http://localhost:7700"
 	}
 
+	var options []meilisearch.Option
+
 	meiliAPIKey := os.Getenv("LAIMA_MEILISEARCH_API_KEY")
-	if meiliAPIKey == "" {
-		meiliAPIKey = "laima_master_key"
+	if meiliAPIKey != "" {
+		options = append(options, meilisearch.WithAPIKey(meiliAPIKey))
 	}
 
-	client := meilisearch.NewClient(meilisearch.ClientConfig{
-		Host:   meiliURL,
-		APIKey: meiliAPIKey,
-	})
-
-	// 测试连接
-	_, err := client.Health()
+	client, err := meilisearch.Connect(meiliURL, options...)
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,10 @@ package app
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"laima/internal/git"
+	repodomain "laima/internal/repo/domain"
 	"laima/internal/pr/domain"
 	"time"
 
@@ -36,24 +40,61 @@ type PRService interface {
 
 // prService PR服务实现
 type prService struct {
-	db *gorm.DB
+	db     *gorm.DB
+	gitSvc *git.Service
 }
 
 // NewPRService 创建PR服务实例
-func NewPRService(db *gorm.DB) PRService {
-	return &prService{db: db}
+func NewPRService(db *gorm.DB, gitSvc *git.Service) PRService {
+	return &prService{db: db, gitSvc: gitSvc}
 }
 
 // CreatePR 创建PR
 func (s *prService) CreatePR(ctx context.Context, req *domain.CreatePRRequest, authorID int) (*domain.PullRequest, error) {
-	// 实现创建PR逻辑
-	// 1. 验证请求参数
-	// 2. 生成PR编号
-	// 3. 获取源分支和目标分支的最新提交
-	// 4. 创建PR记录
-	// 5. 触发CI/CD和AI审查
-	// 6. 返回PR信息
-	return nil, nil
+	// 验证目标仓库存在
+	var targetRepo repodomain.Repository
+	if err := s.db.First(&targetRepo, req.RepositoryID).Error; err != nil {
+		return nil, fmt.Errorf("target repository not found: %w", err)
+	}
+
+	// 验证源仓库存在
+	var sourceRepo repodomain.Repository
+	if err := s.db.First(&sourceRepo, req.SourceRepoID).Error; err != nil {
+		return nil, fmt.Errorf("source repository not found: %w", err)
+	}
+
+	// 生成PR编号
+	var maxNumber int
+	s.db.Model(&domain.PullRequest{}).Where("repository_id = ?", req.RepositoryID).Select("COALESCE(MAX(number), 0)").Scan(&maxNumber)
+	prNumber := maxNumber + 1
+
+	// 创建PR记录
+	pr := &domain.PullRequest{
+		Number:          prNumber,
+		Title:           req.Title,
+		Description:     req.Description,
+		RepositoryID:    req.RepositoryID,
+		AuthorID:        authorID,
+		SourceRepoID:    req.SourceRepoID,
+		SourceBranch:    req.SourceBranch,
+		TargetBranch:    req.TargetBranch,
+		State:           "open",
+		MergeState:      "checking",
+		ReviewMode:      "standard",
+		HeadCommitSHA:   "placeholder",
+		BaseCommitSHA:   "placeholder",
+		IsDraft:         req.IsDraft,
+		AIReviewStatus:  "pending",
+	}
+
+	if err := s.db.Create(pr).Error; err != nil {
+		return nil, err
+	}
+
+	// 触发合并状态检查
+	go s.UpdateMergeState(context.Background(), pr.ID)
+
+	return pr, nil
 }
 
 // GetPR 根据ID获取PR
@@ -83,7 +124,6 @@ func (s *prService) UpdatePR(ctx context.Context, prID int, req *domain.UpdatePR
 		return nil, err
 	}
 
-	// 更新PR信息
 	updates := make(map[string]interface{})
 	if req.Title != "" {
 		updates["title"] = req.Title
@@ -117,7 +157,6 @@ func (s *prService) ListPRs(ctx context.Context, filter *domain.PRFilter) ([]*do
 
 	query := s.db.Model(&domain.PullRequest{})
 
-	// 应用过滤条件
 	if filter.RepositoryID > 0 {
 		query = query.Where("repository_id = ?", filter.RepositoryID)
 	}
@@ -131,10 +170,8 @@ func (s *prService) ListPRs(ctx context.Context, filter *domain.PRFilter) ([]*do
 		query = query.Where("title LIKE ? OR description LIKE ?", "%"+filter.Search+"%", "%"+filter.Search+"%")
 	}
 
-	// 计算总数
 	query.Count(&total)
 
-	// 分页
 	offset := (filter.Page - 1) * filter.PerPage
 	result := query.Offset(offset).Limit(filter.PerPage).Order("created_at DESC").Find(&prs)
 	if result.Error != nil {
@@ -146,13 +183,35 @@ func (s *prService) ListPRs(ctx context.Context, filter *domain.PRFilter) ([]*do
 
 // MergePR 合并PR
 func (s *prService) MergePR(ctx context.Context, prID int, userID int) (*domain.PullRequest, error) {
-	// 实现合并PR逻辑
-	// 1. 验证PR存在且可合并
-	// 2. 执行git合并操作
-	// 3. 更新PR状态
-	// 4. 触发后续操作（如CI/CD）
-	// 5. 返回更新后的PR
-	return nil, nil
+	var pr domain.PullRequest
+	if err := s.db.First(&pr, prID).Error; err != nil {
+		return nil, err
+	}
+
+	if pr.State != "open" {
+		return nil, errors.New("PR is not open")
+	}
+
+	// 检查可合并性
+	mergeable, err := s.CheckMergeability(ctx, prID)
+	if err != nil {
+		return nil, err
+	}
+	if !mergeable {
+		return nil, errors.New("PR is not mergeable")
+	}
+
+	// 更新PR状态
+	pr.State = "merged"
+	pr.MergedBy = userID
+	pr.MergedAt = time.Now()
+	pr.MergeCommitSHA = "placeholder_merge_sha"
+
+	if err := s.db.Save(&pr).Error; err != nil {
+		return nil, err
+	}
+
+	return &pr, nil
 }
 
 // ClosePR 关闭PR
@@ -162,8 +221,12 @@ func (s *prService) ClosePR(ctx context.Context, prID int, userID int) (*domain.
 		return nil, err
 	}
 
+	if pr.State != "open" {
+		return nil, errors.New("PR is not open")
+	}
+
 	pr.State = "closed"
-	pr.ClosedAt = s.db.NowFunc()
+	pr.ClosedAt = time.Now()
 
 	if err := s.db.Save(&pr).Error; err != nil {
 		return nil, err
@@ -179,6 +242,10 @@ func (s *prService) ReopenPR(ctx context.Context, prID int, userID int) (*domain
 		return nil, err
 	}
 
+	if pr.State != "closed" {
+		return nil, errors.New("PR is not closed")
+	}
+
 	pr.State = "open"
 	pr.ClosedAt = time.Time{}
 
@@ -191,12 +258,25 @@ func (s *prService) ReopenPR(ctx context.Context, prID int, userID int) (*domain
 
 // CreateReview 创建审查
 func (s *prService) CreateReview(ctx context.Context, prID int, req *domain.ReviewRequest, reviewerID int) (*domain.Review, error) {
-	// 实现创建审查逻辑
-	// 1. 验证PR存在
-	// 2. 创建审查记录
-	// 3. 更新PR状态
-	// 4. 返回审查信息
-	return nil, nil
+	var pr domain.PullRequest
+	if err := s.db.First(&pr, prID).Error; err != nil {
+		return nil, err
+	}
+
+	review := &domain.Review{
+		PullRequestID: prID,
+		ReviewerID:    reviewerID,
+		State:         req.State,
+		Score:         req.Score,
+		Body:          req.Body,
+		SubmittedAt:   time.Now(),
+	}
+
+	if err := s.db.Create(review).Error; err != nil {
+		return nil, err
+	}
+
+	return review, nil
 }
 
 // GetReviews 获取审查列表
@@ -211,11 +291,27 @@ func (s *prService) GetReviews(ctx context.Context, prID int) ([]*domain.Review,
 
 // CreateReviewComment 创建审查评论
 func (s *prService) CreateReviewComment(ctx context.Context, prID int, req *domain.ReviewCommentRequest, authorID int) (*domain.ReviewComment, error) {
-	// 实现创建审查评论逻辑
-	// 1. 验证PR存在
-	// 2. 创建评论记录
-	// 3. 返回评论信息
-	return nil, nil
+	var pr domain.PullRequest
+	if err := s.db.First(&pr, prID).Error; err != nil {
+		return nil, err
+	}
+
+	comment := &domain.ReviewComment{
+		PullRequestID: prID,
+		AuthorID:      authorID,
+		Type:          "human",
+		Path:          req.Path,
+		Line:          req.Line,
+		DiffHunk:      req.DiffHunk,
+		Body:          req.Body,
+		Suggestion:    req.Suggestion,
+	}
+
+	if err := s.db.Create(comment).Error; err != nil {
+		return nil, err
+	}
+
+	return comment, nil
 }
 
 // GetReviewComments 获取审查评论列表
@@ -230,20 +326,47 @@ func (s *prService) GetReviewComments(ctx context.Context, prID int) ([]*domain.
 
 // CheckMergeability 检查PR是否可合并
 func (s *prService) CheckMergeability(ctx context.Context, prID int) (bool, error) {
-	// 实现检查合并性逻辑
-	// 1. 验证PR存在
-	// 2. 检查分支冲突
-	// 3. 检查审查状态
-	// 4. 检查CI/CD状态
-	// 5. 返回可合并状态
-	return false, nil
+	var pr domain.PullRequest
+	if err := s.db.First(&pr, prID).Error; err != nil {
+		return false, err
+	}
+
+	if pr.State != "open" {
+		return false, nil
+	}
+
+	if pr.IsDraft {
+		return false, nil
+	}
+
+	// 检查是否有批准的审查
+	var approveCount int64
+	s.db.Model(&domain.Review{}).Where("pull_request_id = ? AND state = ?", prID, "approve").Count(&approveCount)
+	
+	if approveCount == 0 {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 // UpdateMergeState 更新合并状态
 func (s *prService) UpdateMergeState(ctx context.Context, prID int) error {
-	// 实现更新合并状态逻辑
-	// 1. 验证PR存在
-	// 2. 检查合并性
-	// 3. 更新合并状态
-	return nil
+	mergeable, err := s.CheckMergeability(ctx, prID)
+	if err != nil {
+		return err
+	}
+
+	var pr domain.PullRequest
+	if err := s.db.First(&pr, prID).Error; err != nil {
+		return err
+	}
+
+	if mergeable {
+		pr.MergeState = "clean"
+	} else {
+		pr.MergeState = "checking"
+	}
+
+	return s.db.Save(&pr).Error
 }

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"laima/internal/git"
 	"laima/internal/middleware"
 	"laima/internal/repo/app"
 	"laima/internal/repo/domain"
@@ -21,13 +22,13 @@ type RepoAPI struct {
 	db         *gorm.DB
 	redis      *redis.Client
 	minio      *minio.Client
-	meili      *meilisearch.Client
+	meili      meilisearch.ServiceManager
 }
 
 // NewRepoAPI 创建仓库 API 实例
-func NewRepoAPI(db *gorm.DB, redis *redis.Client, minio *minio.Client, meili *meilisearch.Client) *RepoAPI {
+func NewRepoAPI(db *gorm.DB, redis *redis.Client, minio *minio.Client, meili meilisearch.ServiceManager, gitSvc *git.Service) *RepoAPI {
 	return &RepoAPI{
-		repoService: app.NewRepoService(db),
+		repoService: app.NewRepoService(db, gitSvc),
 		db:    db,
 		redis: redis,
 		minio: minio,

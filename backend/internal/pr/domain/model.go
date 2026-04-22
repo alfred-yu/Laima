@@ -25,7 +25,7 @@ type PullRequest struct {
 	MergedAt      time.Time `json:"merged_at"`
 	ClosedAt      time.Time `json:"closed_at"`
 	IsDraft       bool      `json:"is_draft" gorm:"not null;default:false"`
-	AI ReviewStatus string   `json:"ai_review_status" gorm:"not null;default:'pending'"`
+	AIReviewStatus string  `json:"ai_review_status" gorm:"not null;default:'pending'"`
 	CreatedAt     time.Time `json:"created_at" gorm:"not null;default:now()"`
 	UpdatedAt     time.Time `json:"updated_at" gorm:"not null;default:now()"`
 }
@@ -124,7 +124,7 @@ type PRResponse struct {
 	MergedAt      time.Time `json:"merged_at"`
 	ClosedAt      time.Time `json:"closed_at"`
 	IsDraft       bool      `json:"is_draft"`
-	AI ReviewStatus string   `json:"ai_review_status"`
+	AIReviewStatus string  `json:"ai_review_status"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }

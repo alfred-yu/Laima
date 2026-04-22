@@ -45,6 +45,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores'
+import { authApi } from '../services/api'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -63,18 +64,12 @@ const handleLogin = async () => {
     isLoading.value = true
     error.value = ''
     
-    // 实际项目中这里会调用 API
-    // 模拟登录成功
-    setTimeout(() => {
-      userStore.setToken('mock-token-123')
-      userStore.setUser({
-        id: 1,
-        username: form.value.username,
-        email: `${form.value.username}@example.com`,
-        name: form.value.username
-      })
-      router.push('/')
-    }, 1000)
+    const response = await authApi.login(form.value.username, form.value.password)
+    
+    userStore.setToken(response.token)
+    userStore.setUser(response.user)
+    
+    router.push('/')
   } catch (err: any) {
     error.value = err.message || '登录失败，请检查用户名和密码'
   } finally {

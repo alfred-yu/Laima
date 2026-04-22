@@ -1,6 +1,7 @@
 package api
 
 import (
+	"laima/internal/middleware"
 	"laima/internal/user/app"
 	"laima/internal/user/domain"
 	"net/http"
@@ -38,6 +39,7 @@ func (api *UserAPI) RegisterRoutes(r *gin.Engine) {
 
 	// 用户路由
 	user := r.Group("/api/users")
+	user.Use(middleware.AuthMiddleware())
 	{
 		user.GET("/me", api.GetCurrentUser)
 		user.PUT("/me", api.UpdateCurrentUser)
@@ -47,6 +49,7 @@ func (api *UserAPI) RegisterRoutes(r *gin.Engine) {
 
 	// 组织路由
 	org := r.Group("/api/orgs")
+	org.Use(middleware.AuthMiddleware())
 	{
 		org.POST("/", api.CreateOrganization)
 		org.GET("/:id", api.GetOrganization)
@@ -60,12 +63,19 @@ func (api *UserAPI) RegisterRoutes(r *gin.Engine) {
 
 	// 仓库成员路由
 	repoMembers := r.Group("/api/repos/:repo_id/members")
+	repoMembers.Use(middleware.AuthMiddleware())
 	{
 		repoMembers.GET("/", api.GetRepositoryMembers)
 		repoMembers.POST("/", api.AddRepositoryMember)
 		repoMembers.DELETE("/:user_id", api.RemoveRepositoryMember)
 		repoMembers.PUT("/:user_id/role", api.UpdateRepositoryMemberRole)
 	}
+}
+
+// getCurrentUserID 从上下文中获取当前用户ID
+func getCurrentUserID(c *gin.Context) int {
+	userID, _ := c.Get("user_id")
+	return userID.(int)
 }
 
 // Login 用户登录
@@ -104,9 +114,7 @@ func (api *UserAPI) Register(c *gin.Context) {
 
 // GetCurrentUser 获取当前用户
 func (api *UserAPI) GetCurrentUser(c *gin.Context) {
-	// 从JWT token中获取用户ID
-	// 这里需要实现JWT认证中间件
-	userID := 1 // 临时硬编码
+	userID := getCurrentUserID(c)
 
 	user, err := api.userService.GetUserByID(userID)
 	if err != nil {
@@ -119,14 +127,17 @@ func (api *UserAPI) GetCurrentUser(c *gin.Context) {
 
 // UpdateCurrentUser 更新当前用户
 func (api *UserAPI) UpdateCurrentUser(c *gin.Context) {
-	// 从JWT token中获取用户ID
-	userID := 1 // 临时硬编码
+	userID := getCurrentUserID(c)
 
 	var updates map[string]interface{}
 	if err := c.ShouldBindJSON(&updates); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// 禁止修改密码和ID
+	delete(updates, "password")
+	delete(updates, "id")
 
 	user, err := api.userService.UpdateUser(userID, updates)
 	if err != nil {
@@ -170,8 +181,7 @@ func (api *UserAPI) GetUserByUsername(c *gin.Context) {
 
 // CreateOrganization 创建组织
 func (api *UserAPI) CreateOrganization(c *gin.Context) {
-	// 从JWT token中获取用户ID
-	userID := 1 // 临时硬编码
+	userID := getCurrentUserID(c)
 
 	var req struct {
 		Name        string `json:"name" binding:"required"`

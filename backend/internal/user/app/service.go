@@ -1,10 +1,25 @@
 package app
 
 import (
+	"errors"
+	"fmt"
 	"laima/internal/user/domain"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
+
+// JWT 密钥（生产环境应放在环境变量中）
+var jwtSecret = []byte("laima-secret-key-change-in-production")
+
+// JWT Claims 结构
+type Claims struct {
+	UserID   int    `json:"user_id"`
+	Username string `json:"username"`
+	jwt.RegisteredClaims
+}
 
 // UserService 用户服务接口
 type UserService interface {
@@ -45,25 +60,111 @@ func NewUserService(db *gorm.DB) UserService {
 	return &userService{db: db}
 }
 
+// hashPassword 密码哈希
+func hashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(bytes), err
+}
+
+// checkPassword 验证密码
+func checkPassword(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
+}
+
+// generateToken 生成 JWT token
+func generateToken(userID int, username string) (string, error) {
+	expirationTime := time.Now().Add(24 * time.Hour * 7) // 7天过期
+
+	claims := &Claims{
+		UserID:   userID,
+		Username: username,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(jwtSecret)
+}
+
 // Login 用户登录
 func (s *userService) Login(username, password string) (*domain.AuthResponse, error) {
-	// 实现登录逻辑
-	// 1. 查找用户
-	// 2. 验证密码
-	// 3. 生成 JWT token
-	// 4. 返回认证响应
-	return nil, nil
+	var user domain.User
+	result := s.db.Where("username = ? OR email = ?", username, username).First(&user)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, errors.New("invalid username or password")
+		}
+		return nil, result.Error
+	}
+
+	if !checkPassword(password, user.PasswordHash) {
+		return nil, errors.New("invalid username or password")
+	}
+
+	token, err := generateToken(user.ID, user.Username)
+	if err != nil {
+		return nil, err
+	}
+
+	return &domain.AuthResponse{
+		Token: token,
+		User: domain.UserResponse{
+			ID:        user.ID,
+			Username:  user.Username,
+			Email:     user.Email,
+			AvatarURL: user.AvatarURL,
+			Bio:       user.Bio,
+		},
+	}, nil
 }
 
 // Register 用户注册
 func (s *userService) Register(req *domain.RegisterRequest) (*domain.AuthResponse, error) {
-	// 实现注册逻辑
-	// 1. 检查用户名和邮箱是否已存在
-	// 2. 密码哈希
-	// 3. 创建用户
-	// 4. 生成 JWT token
-	// 5. 返回认证响应
-	return nil, nil
+	var count int64
+	s.db.Model(&domain.User{}).Where("username = ?", req.Username).Count(&count)
+	if count > 0 {
+		return nil, fmt.Errorf("username %s already exists", req.Username)
+	}
+
+	s.db.Model(&domain.User{}).Where("email = ?", req.Email).Count(&count)
+	if count > 0 {
+		return nil, fmt.Errorf("email %s already exists", req.Email)
+	}
+
+	hashedPassword, err := hashPassword(req.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	user := &domain.User{
+		Username:     req.Username,
+		Email:        req.Email,
+		PasswordHash: hashedPassword,
+		AvatarURL:    fmt.Sprintf("https://ui-avatars.com/api/?name=%s&background=random", req.Username),
+	}
+
+	if err := s.db.Create(user).Error; err != nil {
+		return nil, err
+	}
+
+	token, err := generateToken(user.ID, user.Username)
+	if err != nil {
+		return nil, err
+	}
+
+	return &domain.AuthResponse{
+		Token: token,
+		User: domain.UserResponse{
+			ID:        user.ID,
+			Username:  user.Username,
+			Email:     user.Email,
+			AvatarURL: user.AvatarURL,
+			Bio:       user.Bio,
+		},
+	}, nil
 }
 
 // GetUserByID 根据ID获取用户

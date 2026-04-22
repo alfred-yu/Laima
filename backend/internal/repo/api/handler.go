@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"laima/internal/middleware"
 	"laima/internal/repo/app"
 	"laima/internal/repo/domain"
 
@@ -34,30 +35,36 @@ func NewRepoAPI(db *gorm.DB, redis *redis.Client, minio *minio.Client, meili *me
 	}
 }
 
+// getCurrentUserID 获取当前用户 ID
+func getCurrentUserID(c *gin.Context) int64 {
+	userID, _ := c.Get("user_id")
+	return int64(userID.(int))
+}
+
 // RegisterRoutes 注册路由
 func (api *RepoAPI) RegisterRoutes(r *gin.Engine) {
 	repoGroup := r.Group("/api/v1/repos")
 	{
-		// 仓库 CRUD
+		// 仓库 CRUD - 需要认证的路由
 		repoGroup.GET("", api.ListRepos)
-		repoGroup.POST("", api.CreateRepo)
+		repoGroup.POST("", middleware.AuthMiddleware(), api.CreateRepo)
 		repoGroup.GET("/:owner/:repo", api.GetRepo)
-		repoGroup.PUT("/:owner/:repo", api.UpdateRepo)
-		repoGroup.DELETE("/:owner/:repo", api.DeleteRepo)
+		repoGroup.PUT("/:owner/:repo", middleware.AuthMiddleware(), api.UpdateRepo)
+		repoGroup.DELETE("/:owner/:repo", middleware.AuthMiddleware(), api.DeleteRepo)
 
-		// Fork & 导入
-		repoGroup.POST("/:owner/:repo/forks", api.ForkRepo)
-		repoGroup.POST("/import", api.ImportRepo)
+		// Fork & 导入 - 需要认证
+		repoGroup.POST("/:owner/:repo/forks", middleware.AuthMiddleware(), api.ForkRepo)
+		repoGroup.POST("/import", middleware.AuthMiddleware(), api.ImportRepo)
 
-		// 分支操作
+		// 分支操作 - 需要认证
 		repoGroup.GET("/:owner/:repo/branches", api.ListBranches)
-		repoGroup.POST("/:owner/:repo/branches", api.CreateBranch)
-		repoGroup.DELETE("/:owner/:repo/branches/:branch", api.DeleteBranch)
+		repoGroup.POST("/:owner/:repo/branches", middleware.AuthMiddleware(), api.CreateBranch)
+		repoGroup.DELETE("/:owner/:repo/branches/:branch", middleware.AuthMiddleware(), api.DeleteBranch)
 
 		// 标签操作
 		repoGroup.GET("/:owner/:repo/tags", api.ListTags)
-		repoGroup.POST("/:owner/:repo/tags", api.CreateTag)
-		repoGroup.DELETE("/:owner/:repo/tags/:tag", api.DeleteTag)
+		repoGroup.POST("/:owner/:repo/tags", middleware.AuthMiddleware(), api.CreateTag)
+		repoGroup.DELETE("/:owner/:repo/tags/:tag", middleware.AuthMiddleware(), api.DeleteTag)
 
 		// 代码浏览
 		repoGroup.GET("/:owner/:repo/contents/*path", api.GetContent)
@@ -67,9 +74,9 @@ func (api *RepoAPI) RegisterRoutes(r *gin.Engine) {
 		// 代码搜索
 		repoGroup.GET("/:owner/:repo/search", api.SearchCode)
 
-		// 统计
-		repoGroup.POST("/:owner/:repo/star", api.StarRepo)
-		repoGroup.DELETE("/:owner/:repo/star", api.UnstarRepo)
+		// 统计 - 需要认证
+		repoGroup.POST("/:owner/:repo/star", middleware.AuthMiddleware(), api.StarRepo)
+		repoGroup.DELETE("/:owner/:repo/star", middleware.AuthMiddleware(), api.UnstarRepo)
 	}
 }
 
@@ -111,6 +118,12 @@ func (api *RepoAPI) CreateRepo(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// 如果没有指定所有者，默认使用当前用户
+	if req.OwnerID == 0 {
+		req.OwnerID = getCurrentUserID(c)
+		req.OwnerType = domain.OwnerTypeUser
 	}
 
 	repo, err := api.repoService.CreateRepo(c, &req)

@@ -60,8 +60,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '../stores'
+import { authApi } from '../services/api'
 
 const router = useRouter()
+const userStore = useUserStore()
 
 const form = ref({
   username: '',
@@ -84,11 +87,12 @@ const handleRegister = async () => {
       return
     }
     
-    // 实际项目中这里会调用 API
-    // 模拟注册成功
-    setTimeout(() => {
-      router.push('/login')
-    }, 1000)
+    const response = await authApi.register(form.value.username, form.value.email, form.value.password)
+    
+    userStore.setToken(response.token)
+    userStore.setUser(response.user)
+    
+    router.push('/')
   } catch (err: any) {
     error.value = err.message || '注册失败，请稍后重试'
   } finally {

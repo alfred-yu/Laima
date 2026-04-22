@@ -2,7 +2,11 @@ package app
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"laima/internal/repo/domain"
+	"laima/internal/user/domain"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -17,15 +21,90 @@ func NewRepoService(db *gorm.DB) RepoService {
 	return &repoService{db: db}
 }
 
+// generateFullPath 生成完整仓库路径
+func (s *repoService) generateFullPath(ownerType domain.OwnerType, ownerID int64, name string) (string, error) {
+	var ownerName string
+	switch ownerType {
+	case domain.OwnerTypeUser:
+		var user domain.User
+		if err := s.db.First(&user, ownerID).Error; err != nil {
+			return "", err
+		}
+		ownerName = user.Username
+	case domain.OwnerTypeOrg:
+		var org domain.Organization
+		if err := s.db.First(&org, ownerID).Error; err != nil {
+			return "", err
+		}
+		ownerName = org.Name
+	default:
+		return "", errors.New("invalid owner type")
+	}
+	return fmt.Sprintf("%s/%s", ownerName, name), nil
+}
+
 // CreateRepo 创建仓库
 func (s *repoService) CreateRepo(ctx context.Context, req *CreateRepoRequest) (*domain.Repository, error) {
-	// 实现创建仓库逻辑
-	// 1. 验证请求参数
-	// 2. 生成仓库路径
-	// 3. 创建仓库记录
-	// 4. 初始化 git 仓库
-	// 5. 返回仓库信息
-	return nil, nil
+	// 生成完整路径
+	fullPath, err := s.generateFullPath(req.OwnerType, req.OwnerID, req.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate full path: %v", err)
+	}
+
+	// 检查仓库是否已存在
+	var existingRepo domain.Repository
+	result := s.db.Where("full_path = ?", fullPath).First(&existingRepo)
+	if result.Error == nil {
+		return nil, errors.New("repository already exists")
+	} else if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, result.Error
+	}
+
+	// 设置默认可见性
+	visibility := domain.VisibilityPrivate
+	if req.Visibility != "" {
+		visibility = domain.Visibility(req.Visibility)
+	} else if req.IsPrivate {
+		visibility = domain.VisibilityPrivate
+	} else {
+		visibility = domain.VisibilityPublic
+	}
+
+	// 设置默认分支
+	defaultBranch := "main"
+	if req.DefaultBranch != "" {
+		defaultBranch = req.DefaultBranch
+	}
+
+	// 创建仓库记录
+	repo := &domain.Repository{
+		Name:          req.Name,
+		FullPath:      fullPath,
+		Description:   req.Description,
+		OwnerType:     req.OwnerType,
+		OwnerID:       req.OwnerID,
+		Visibility:    visibility,
+		DefaultBranch: defaultBranch,
+		Settings:      req.Settings,
+	}
+
+	if err := s.db.Create(repo).Error; err != nil {
+		return nil, err
+	}
+
+	// 如果需要自动初始化，创建默认分支
+	if req.AutoInit {
+		defaultBranch := &domain.Branch{
+			RepositoryID: repo.ID,
+			Name:         repo.DefaultBranch,
+			CommitSHA:    "0000000000000000000000000000000000000000",
+		}
+		if err := s.db.Create(defaultBranch).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	return repo, nil
 }
 
 // GetRepo 根据ID获取仓库

@@ -56,16 +56,19 @@ import (
 
 
 func main() {
-	// 初始化数据库连接 - 这是必需的
-	db, err := initDatabase()
+	// 初始化数据库连接 - 暂时设为可选
+	var db *gorm.DB
+	var err error
+	db, err = initDatabase()
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
-
-	// 自动迁移数据库表
-	err = autoMigrate(db)
-	if err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
+		log.Printf("Warning: Failed to connect to database: %v, running without database", err)
+		// 继续运行，即使没有数据库
+	} else {
+		// 自动迁移数据库表
+		err = autoMigrate(db)
+		if err != nil {
+			log.Printf("Warning: Failed to migrate database: %v, running without database migrations", err)
+		}
 	}
 
 	// 初始化 Redis 连接 - 可选，如果失败则使用内存存储
@@ -93,9 +96,13 @@ func main() {
 	// 初始化 Git 服务
 	gitSvc := initGitService()
 
-	// 初始化审计服务
-	auditSvc := auditapp.NewAuditService(db)
-	auditMiddleware := middleware.NewAuditMiddleware(auditSvc)
+	// 初始化并启动 SSH 服务器
+	sshServer := initSSHServer(gitSvc)
+	go func() {
+		if err := sshServer.Start(context.Background()); err != nil {
+			log.Printf("SSH 服务器启动失败: %v", err)
+		}
+	}()
 
 	// 设置 Gin 模式
 	if os.Getenv("GIN_MODE") == "release" {
@@ -121,30 +128,40 @@ func main() {
 	})
 
 	// 注册审计中间件（在认证之后，路由之前）
-	r.Use(auditMiddleware.Handler())
+	if db != nil {
+		auditSvc := auditapp.NewAuditService(db)
+		auditMiddleware := middleware.NewAuditMiddleware(auditSvc)
+		r.Use(auditMiddleware.Handler())
+	} else {
+		log.Printf("Warning: Running without audit service due to missing database")
+	}
 
 	// 注册 API 路由
-	repoAPI := repoapi.NewRepoAPI(db, redisClient, minioClient, meiliClient, gitSvc)
-	repoAPI.RegisterRoutes(r)
+	if db != nil {
+		repoAPI := repoapi.NewRepoAPI(db, redisClient, minioClient, meiliClient, gitSvc)
+		repoAPI.RegisterRoutes(r)
 
-	userAPI := userapi.NewUserAPI(db, redisClient)
-	userAPI.RegisterRoutes(r)
+		userAPI := userapi.NewUserAPI(db, redisClient)
+		userAPI.RegisterRoutes(r)
 
-	prAPI := prapi.NewPRAPI(db, gitSvc)
-	prAPI.RegisterRoutes(r)
+		prAPI := prapi.NewPRAPI(db, gitSvc)
+		prAPI.RegisterRoutes(r)
 
-	aiAPI := aiapi.NewAIApi(db)
-	aiAPI.RegisterRoutes(r)
+		aiAPI := aiapi.NewAIApi(db)
+		aiAPI.RegisterRoutes(r)
 
-	cicdAPI := cicdapi.NewCICDApi(db)
-	cicdAPI.RegisterRoutes(r)
+		cicdAPI := cicdapi.NewCICDApi(db)
+		cicdAPI.RegisterRoutes(r)
 
-	issueAPI := issueapi.NewIssueApi(db)
-	issueAPI.RegisterRoutes(r)
+		issueAPI := issueapi.NewIssueApi(db)
+		issueAPI.RegisterRoutes(r)
 
-	// 注册审计路由
-	auditAPI := auditapi.NewAuditAPI(db)
-	auditAPI.RegisterRoutes(r)
+		// 注册审计路由
+		auditAPI := auditapi.NewAuditAPI(db)
+		auditAPI.RegisterRoutes(r)
+	} else {
+		log.Printf("Warning: Running without API routes due to missing database")
+	}
 
 	// 注册 Swagger 路由
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -207,6 +224,30 @@ func initGitService() *git.Service {
 	}
 
 	return git.NewService(repoPath)
+}
+
+// initSSHServer 初始化 SSH 服务器
+func initSSHServer(gitSvc *git.Service) *git.SSHServer {
+	// 获取 SSH 服务器配置
+	sshAddr := os.Getenv("LAIMA_SSH_PORT")
+	if sshAddr == "" {
+		sshAddr = "2222"
+	}
+
+	hostKeyPath := os.Getenv("LAIMA_SSH_HOST_KEY")
+	if hostKeyPath == "" {
+		// 默认路径为当前工作目录下的 ssh 文件夹
+		cwd, _ := os.Getwd()
+		hostKeyPath = filepath.Join(cwd, "ssh", "host_key")
+	}
+
+	// 确保 SSH 目录存在
+	if err := os.MkdirAll(filepath.Dir(hostKeyPath), 0755); err != nil {
+		log.Fatalf("Failed to create SSH directory: %v", err)
+	}
+
+	// 创建并返回 SSH 服务器
+	return git.NewSSHServer(":"+sshAddr, hostKeyPath, gitSvc.GetRepoBasePath(), gitSvc)
 }
 
 // 初始化数据库连接

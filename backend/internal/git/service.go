@@ -22,6 +22,11 @@ func NewService(basePath string) *Service {
 	return &Service{repoBasePath: basePath}
 }
 
+// GetRepoBasePath 获取仓库基础路径
+func (s *Service) GetRepoBasePath() string {
+	return s.repoBasePath
+}
+
 // getRepoPath 获取仓库存储路径
 func (s *Service) getRepoPath(owner, name string) string {
 	return filepath.Join(s.repoBasePath, owner, name+".git")

@@ -1,15 +1,16 @@
-FROM golang:1.25-alpine AS builder
+FROM registry.cn-hangzhou.aliyuncs.com/google_containers/golang:1.25-alpine AS builder
 
 WORKDIR /app
 
 COPY go.mod go.sum ./
-RUN go mod download
+# 设置Go模块代理
+RUN go env -w GOPROXY=https://goproxy.cn,direct && go mod download
 
 COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o laima ./cmd/laima
 
-FROM alpine:latest
+FROM registry.cn-hangzhou.aliyuncs.com/google_containers/alpine:latest
 
 WORKDIR /app
 

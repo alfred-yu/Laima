@@ -42,12 +42,19 @@ type UserService interface {
 	RemoveOrganizationMember(orgID, userID int) error
 	UpdateOrganizationMemberRole(orgID, userID int, role string) (*domain.OrganizationMember, error)
 	GetOrganizationMembers(orgID int) ([]*domain.OrganizationMember, error)
+	GetOrganizationMember(orgID, userID int) (*domain.OrganizationMember, error)
 
 	// 仓库成员管理
 	AddRepositoryMember(repoID, userID int, role string) (*domain.RepositoryMember, error)
 	RemoveRepositoryMember(repoID, userID int) error
 	UpdateRepositoryMemberRole(repoID, userID int, role string) (*domain.RepositoryMember, error)
 	GetRepositoryMembers(repoID int) ([]*domain.RepositoryMember, error)
+	GetRepositoryMember(repoID, userID int) (*domain.RepositoryMember, error)
+
+	// 权限检查
+	CheckOrganizationPermission(orgID, userID int, requiredRole string) (bool, error)
+	CheckRepositoryPermission(repoID, userID int, requiredRole string) (bool, error)
+	CheckUserPermission(userID, targetUserID int) (bool, error)
 }
 
 // userService 用户服务实现
@@ -354,4 +361,68 @@ func (s *userService) GetRepositoryMembers(repoID int) ([]*domain.RepositoryMemb
 		return nil, result.Error
 	}
 	return members, nil
+}
+
+// GetOrganizationMember 获取组织成员
+func (s *userService) GetOrganizationMember(orgID, userID int) (*domain.OrganizationMember, error) {
+	var member domain.OrganizationMember
+	result := s.db.Where("organization_id = ? AND user_id = ?", orgID, userID).First(&member)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &member, nil
+}
+
+// GetRepositoryMember 获取仓库成员
+func (s *userService) GetRepositoryMember(repoID, userID int) (*domain.RepositoryMember, error) {
+	var member domain.RepositoryMember
+	result := s.db.Where("repository_id = ? AND user_id = ?", repoID, userID).First(&member)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &member, nil
+}
+
+// 角色权限等级映射
+var rolePermissionMap = map[string]int{
+	"member":  1,
+	"developer": 2,
+	"maintainer": 3,
+	"owner":   4,
+}
+
+// CheckOrganizationPermission 检查组织权限
+func (s *userService) CheckOrganizationPermission(orgID, userID int, requiredRole string) (bool, error) {
+	// 获取组织成员信息
+	member, err := s.GetOrganizationMember(orgID, userID)
+	if err != nil {
+		return false, err
+	}
+
+	// 检查角色权限
+	memberRoleLevel := rolePermissionMap[member.Role]
+	requiredRoleLevel := rolePermissionMap[requiredRole]
+
+	return memberRoleLevel >= requiredRoleLevel, nil
+}
+
+// CheckRepositoryPermission 检查仓库权限
+func (s *userService) CheckRepositoryPermission(repoID, userID int, requiredRole string) (bool, error) {
+	// 获取仓库成员信息
+	member, err := s.GetRepositoryMember(repoID, userID)
+	if err != nil {
+		return false, err
+	}
+
+	// 检查角色权限
+	memberRoleLevel := rolePermissionMap[member.Role]
+	requiredRoleLevel := rolePermissionMap[requiredRole]
+
+	return memberRoleLevel >= requiredRoleLevel, nil
+}
+
+// CheckUserPermission 检查用户权限
+func (s *userService) CheckUserPermission(userID, targetUserID int) (bool, error) {
+	// 只能访问自己的信息
+	return userID == targetUserID, nil
 }

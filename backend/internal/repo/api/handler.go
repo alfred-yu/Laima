@@ -29,7 +29,7 @@ type RepoAPI struct {
 // NewRepoAPI 创建仓库 API 实例
 func NewRepoAPI(db *gorm.DB, redis *redis.Client, minio *minio.Client, meili meilisearch.ServiceManager, gitSvc *git.Service) *RepoAPI {
 	return &RepoAPI{
-		repoService: app.NewRepoService(db, gitSvc),
+		repoService: app.NewRepoService(db, gitSvc, meili),
 		db:    db,
 		redis: redis,
 		minio: minio,

@@ -278,3 +278,159 @@ func (s *Service) ListCommits(owner, name, ref string) ([]*object.Commit, error)
 	})
 	return commits, err
 }
+
+// CreateTag 创建标签
+func (s *Service) CreateTag(owner, name, tagName, ref, message string) error {
+	repo, err := s.GetRepo(owner, name)
+	if err != nil {
+		return err
+	}
+
+	// 获取引用对应的提交
+	refObj, err := repo.Reference(plumbing.ReferenceName(ref), true)
+	if err != nil {
+		return err
+	}
+
+	// 直接创建标签引用
+	tagRef := plumbing.NewHashReference(
+		plumbing.ReferenceName("refs/tags/"+tagName),
+		refObj.Hash(),
+	)
+
+	return repo.Storer.SetReference(tagRef)
+}
+
+// DeleteTag 删除标签
+func (s *Service) DeleteTag(owner, name, tagName string) error {
+	repo, err := s.GetRepo(owner, name)
+	if err != nil {
+		return err
+	}
+
+	tagRef := plumbing.ReferenceName("refs/tags/" + tagName)
+	return repo.Storer.RemoveReference(tagRef)
+}
+
+// ListTags 列出所有标签
+func (s *Service) ListTags(owner, name string) ([]string, error) {
+	repo, err := s.GetRepo(owner, name)
+	if err != nil {
+		return nil, err
+	}
+
+	refs, err := repo.Tags()
+	if err != nil {
+		return nil, err
+	}
+
+	var tags []string
+	err = refs.ForEach(func(ref *plumbing.Reference) error {
+		tags = append(tags, ref.Name().Short())
+		return nil
+	})
+	return tags, err
+}
+
+// GetTag 获取标签信息
+func (s *Service) GetTag(owner, name, tagName string) (*object.Tag, error) {
+	repo, err := s.GetRepo(owner, name)
+	if err != nil {
+		return nil, err
+	}
+
+	tagRef := plumbing.ReferenceName("refs/tags/" + tagName)
+	_, err = repo.Reference(tagRef, true)
+	if err != nil {
+		return nil, err
+	}
+
+	// 对于轻量级标签，返回 nil
+	return nil, nil
+}
+
+// ForkRepo 复制一个仓库
+func (s *Service) ForkRepo(ctx context.Context, sourceOwner, sourceName, targetOwner, targetName string) error {
+	// 获取源仓库路径
+	sourcePath := s.getRepoPath(sourceOwner, sourceName)
+	// 获取目标仓库路径
+	targetPath := s.getRepoPath(targetOwner, targetName)
+
+	// 确保目标目录存在
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+		return fmt.Errorf("创建目标仓库目录失败: %w", err)
+	}
+
+	// 克隆仓库
+	_, err := git.PlainClone(targetPath, true, &git.CloneOptions{
+		URL:               sourcePath,
+		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+		ReferenceName:     plumbing.HEAD,
+	})
+	if err != nil {
+		return fmt.Errorf("克隆仓库失败: %w", err)
+	}
+
+	return nil
+}
+
+// LFSStorePath 获取 LFS 存储路径
+func (s *Service) LFSStorePath() string {
+	return filepath.Join(s.repoBasePath, "lfs")
+}
+
+// EnsureLFSStore 确保 LFS 存储目录存在
+func (s *Service) EnsureLFSStore() error {
+	lfsPath := s.LFSStorePath()
+	return os.MkdirAll(lfsPath, 0755)
+}
+
+// GetLFSObjectPath 获取 LFS 对象存储路径
+func (s *Service) GetLFSObjectPath(oid string) string {
+	// LFS 对象存储格式: lfs/xx/xx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+	if len(oid) < 4 {
+		return ""
+	}
+	prefix1 := oid[:2]
+	prefix2 := oid[2:4]
+	return filepath.Join(s.LFSStorePath(), prefix1, prefix2, oid)
+}
+
+// UploadLFSObject 上传 LFS 对象
+func (s *Service) UploadLFSObject(oid string, size int64, content []byte) error {
+	if err := s.EnsureLFSStore(); err != nil {
+		return err
+	}
+
+	objectPath := s.GetLFSObjectPath(oid)
+	if objectPath == "" {
+		return fmt.Errorf("invalid oid")
+	}
+
+	// 确保对象目录存在
+	if err := os.MkdirAll(filepath.Dir(objectPath), 0755); err != nil {
+		return fmt.Errorf("创建 LFS 对象目录失败: %w", err)
+	}
+
+	// 写入对象
+	if err := os.WriteFile(objectPath, content, 0644); err != nil {
+		return fmt.Errorf("写入 LFS 对象失败: %w", err)
+	}
+
+	return nil
+}
+
+// DownloadLFSObject 下载 LFS 对象
+func (s *Service) DownloadLFSObject(oid string) ([]byte, error) {
+	objectPath := s.GetLFSObjectPath(oid)
+	if objectPath == "" {
+		return nil, fmt.Errorf("invalid oid")
+	}
+
+	content, err := os.ReadFile(objectPath)
+	if err != nil {
+		return nil, fmt.Errorf("读取 LFS 对象失败: %w", err)
+	}
+
+	return content, nil
+}

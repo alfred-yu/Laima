@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"laima/internal/git"
 	repodomain "laima/internal/repo/domain"
 	userdomain "laima/internal/user/domain"
 
+	"github.com/go-git/go-git/v5/plumbing"
 	"gorm.io/gorm"
 )
 
@@ -234,12 +236,90 @@ func (s *repoService) ListRepos(ctx context.Context, filter *RepoFilter) ([]*rep
 
 // ForkRepo Fork 仓库
 func (s *repoService) ForkRepo(ctx context.Context, repoID int64, targetNamespace string) (*repodomain.Repository, error) {
-	// 实现 Fork 逻辑
 	// 1. 获取源仓库信息
-	// 2. 创建新仓库记录
-	// 3. 复制源仓库的 git 数据
-	// 4. 返回新仓库信息
-	return nil, nil
+	var sourceRepo repodomain.Repository
+	if err := s.db.First(&sourceRepo, repoID).Error; err != nil {
+		return nil, err
+	}
+
+	// 2. 解析目标命名空间，确定目标所有者
+	// 假设 targetNamespace 是用户名
+	var targetUser userdomain.User
+	if err := s.db.Where("username = ?", targetNamespace).First(&targetUser).Error; err != nil {
+		return nil, errors.New("target namespace not found")
+	}
+
+	// 3. 生成新仓库名称
+	targetRepoName := sourceRepo.Name
+	// 确保仓库名称唯一
+	var existingRepo repodomain.Repository
+	fullPath := fmt.Sprintf("%s/%s", targetNamespace, targetRepoName)
+	result := s.db.Where("full_path = ?", fullPath).First(&existingRepo)
+	if result.Error == nil {
+		// 仓库已存在，添加后缀
+		counter := 1
+		for {
+			newName := fmt.Sprintf("%s-%d", sourceRepo.Name, counter)
+			fullPath = fmt.Sprintf("%s/%s", targetNamespace, newName)
+			result = s.db.Where("full_path = ?", fullPath).First(&existingRepo)
+			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+				targetRepoName = newName
+				break
+			}
+			counter++
+		}
+	}
+
+	// 4. 创建新仓库记录
+	newRepo := &repodomain.Repository{
+		Name:           targetRepoName,
+		FullPath:       fullPath,
+		Description:    sourceRepo.Description,
+		OwnerType:      repodomain.OwnerTypeUser,
+		OwnerID:        targetUser.ID,
+		Visibility:     sourceRepo.Visibility,
+		DefaultBranch:  sourceRepo.DefaultBranch,
+		IsFork:         true,
+		ForkParentID:   &sourceRepo.ID,
+		Settings:       sourceRepo.Settings,
+	}
+
+	// 5. 使用事务，确保数据库和 Git 仓库同时创建成功
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(newRepo).Error; err != nil {
+			return err
+		}
+
+		// 6. 解析源仓库路径，获取源所有者和仓库名
+		sourceOwner := sourceRepo.FullPath[:strings.Index(sourceRepo.FullPath, "/")]
+		sourceName := sourceRepo.FullPath[strings.Index(sourceRepo.FullPath, "/")+1:]
+
+		// 7. 复制源仓库的 git 数据
+		if err := s.gitSvc.ForkRepo(ctx, sourceOwner, sourceName, targetNamespace, targetRepoName); err != nil {
+			return err
+		}
+
+		// 8. 复制分支信息
+		var sourceBranches []*repodomain.Branch
+		if err := tx.Where("repository_id = ?", sourceRepo.ID).Find(&sourceBranches).Error; err != nil {
+			return err
+		}
+
+		for _, branch := range sourceBranches {
+			newBranch := &repodomain.Branch{
+				RepositoryID: newRepo.ID,
+				Name:         branch.Name,
+				CommitSHA:    branch.CommitSHA,
+			}
+			if err := tx.Create(newBranch).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	return newRepo, err
 }
 
 // ImportRepo 导入仓库
@@ -253,121 +333,403 @@ func (s *repoService) ImportRepo(ctx context.Context, req *ImportRepoRequest) (*
 
 // CreateBranch 创建分支
 func (s *repoService) CreateBranch(ctx context.Context, repoID int64, req *CreateBranchRequest) (*repodomain.Branch, error) {
-	// 实现创建分支逻辑
 	// 1. 验证仓库存在
+	var repo repodomain.Repository
+	if err := s.db.First(&repo, repoID).Error; err != nil {
+		return nil, err
+	}
+
 	// 2. 检查分支是否已存在
-	// 3. 创建分支记录
+	var existingBranch repodomain.Branch
+	result := s.db.Where("repository_id = ? AND name = ?", repoID, req.Name).First(&existingBranch)
+	if result.Error == nil {
+		return nil, errors.New("branch already exists")
+	} else if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, result.Error
+	}
+
+	// 3. 解析仓库路径，获取所有者和仓库名
+	owner := repo.FullPath[:strings.Index(repo.FullPath, "/")]
+	repoName := repo.FullPath[strings.Index(repo.FullPath, "/")+1:]
+
 	// 4. 在 git 仓库中创建分支
-	// 5. 返回分支信息
-	return nil, nil
+	if err := s.gitSvc.CreateBranch(owner, repoName, req.Name, req.SourceRef); err != nil {
+		return nil, err
+	}
+
+	// 5. 创建分支记录
+	branch := &repodomain.Branch{
+		RepositoryID: repoID,
+		Name:         req.Name,
+		CommitSHA:    req.SourceRef,
+	}
+
+	if err := s.db.Create(branch).Error; err != nil {
+		return nil, err
+	}
+
+	return branch, nil
 }
 
 // DeleteBranch 删除分支
-func (s *repoService) DeleteBranch(ctx context.Context, repoID int64, branch string) error {
-	// 实现删除分支逻辑
+func (s *repoService) DeleteBranch(ctx context.Context, repoID int64, branchName string) error {
 	// 1. 验证仓库存在
+	var repo repodomain.Repository
+	if err := s.db.First(&repo, repoID).Error; err != nil {
+		return err
+	}
+
 	// 2. 检查分支是否存在
-	// 3. 从 git 仓库中删除分支
-	// 4. 删除分支记录
+	var branch repodomain.Branch
+	result := s.db.Where("repository_id = ? AND name = ?", repoID, branchName).First(&branch)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return errors.New("branch not found")
+		}
+		return result.Error
+	}
+
+	// 3. 解析仓库路径，获取所有者和仓库名
+	owner := repo.FullPath[:strings.Index(repo.FullPath, "/")]
+	repoName := repo.FullPath[strings.Index(repo.FullPath, "/")+1:]
+
+	// 4. 从 git 仓库中删除分支
+	// 注意：go-git 没有直接删除分支的方法，我们需要通过删除引用实现
+	repoObj, err := s.gitSvc.GetRepo(owner, repoName)
+	if err != nil {
+		return err
+	}
+
+	branchRef := plumbing.ReferenceName("refs/heads/" + branchName)
+	if err := repoObj.Storer.RemoveReference(branchRef); err != nil {
+		return err
+	}
+
+	// 5. 删除分支记录
+	if err := s.db.Delete(&branch).Error; err != nil {
+		return err
+	}
+
 	return nil
 }
 
 // ListBranches 列出分支
 func (s *repoService) ListBranches(ctx context.Context, repoID int64) ([]*repodomain.Branch, error) {
-	var branches []*repodomain.Branch
-	result := s.db.Where("repository_id = ?", repoID).Find(&branches)
-	if result.Error != nil {
-		return nil, result.Error
+	// 1. 验证仓库存在
+	var repo repodomain.Repository
+	if err := s.db.First(&repo, repoID).Error; err != nil {
+		return nil, err
 	}
+
+	// 2. 解析仓库路径，获取所有者和仓库名
+	owner := repo.FullPath[:strings.Index(repo.FullPath, "/")]
+	repoName := repo.FullPath[strings.Index(repo.FullPath, "/")+1:]
+
+	// 3. 从 git 仓库中获取分支列表
+	branchNames, err := s.gitSvc.ListBranches(owner, repoName)
+	if err != nil {
+		return nil, err
+	}
+
+	// 4. 构建分支列表
+	var branches []*repodomain.Branch
+	for _, branchName := range branchNames {
+		branch := &repodomain.Branch{
+			RepositoryID: repoID,
+			Name:         branchName,
+			// 暂时为空，后续可以更新
+		}
+		branches = append(branches, branch)
+	}
+
 	return branches, nil
 }
 
 // ProtectBranch 保护分支
 func (s *repoService) ProtectBranch(ctx context.Context, repoID int64, rule *repodomain.BranchProtection) error {
-	// 实现分支保护逻辑
 	// 1. 验证仓库存在
-	// 2. 保存分支保护规则
+	var repo repodomain.Repository
+	if err := s.db.First(&repo, repoID).Error; err != nil {
+		return err
+	}
+
+	// 2. 检查分支是否存在
+	var branch repodomain.Branch
+	result := s.db.Where("repository_id = ? AND name = ?", repoID, rule.BranchName).First(&branch)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return errors.New("branch not found")
+		}
+		return result.Error
+	}
+
+	// 3. 保存分支保护规则
+	rule.RepositoryID = repoID
+	if err := s.db.Create(rule).Error; err != nil {
+		return err
+	}
+
 	return nil
 }
 
 // CreateTag 创建标签
 func (s *repoService) CreateTag(ctx context.Context, repoID int64, req *CreateTagRequest) (*repodomain.Tag, error) {
-	// 实现创建标签逻辑
 	// 1. 验证仓库存在
+	var repo repodomain.Repository
+	if err := s.db.First(&repo, repoID).Error; err != nil {
+		return nil, err
+	}
+
 	// 2. 检查标签是否已存在
-	// 3. 创建标签记录
+	var existingTag repodomain.Tag
+	result := s.db.Where("repository_id = ? AND name = ?", repoID, req.Name).First(&existingTag)
+	if result.Error == nil {
+		return nil, errors.New("tag already exists")
+	} else if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, result.Error
+	}
+
+	// 3. 解析仓库路径，获取所有者和仓库名
+	owner := repo.FullPath[:strings.Index(repo.FullPath, "/")]
+	repoName := repo.FullPath[strings.Index(repo.FullPath, "/")+1:]
+
 	// 4. 在 git 仓库中创建标签
-	// 5. 返回标签信息
-	return nil, nil
+	if err := s.gitSvc.CreateTag(owner, repoName, req.Name, req.TargetRef, req.Message); err != nil {
+		return nil, err
+	}
+
+	// 5. 创建标签记录
+	tag := &repodomain.Tag{
+		RepositoryID: repoID,
+		Name:         req.Name,
+		Message:      req.Message,
+		TargetRef:    req.TargetRef,
+	}
+
+	if err := s.db.Create(tag).Error; err != nil {
+		return nil, err
+	}
+
+	return tag, nil
 }
 
 // DeleteTag 删除标签
 func (s *repoService) DeleteTag(ctx context.Context, repoID int64, tagName string) error {
-	// 实现删除标签逻辑
 	// 1. 验证仓库存在
+	var repo repodomain.Repository
+	if err := s.db.First(&repo, repoID).Error; err != nil {
+		return err
+	}
+
 	// 2. 检查标签是否存在
-	// 3. 从 git 仓库中删除标签
-	// 4. 删除标签记录
+	var tag repodomain.Tag
+	result := s.db.Where("repository_id = ? AND name = ?", repoID, tagName).First(&tag)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return errors.New("tag not found")
+		}
+		return result.Error
+	}
+
+	// 3. 解析仓库路径，获取所有者和仓库名
+	owner := repo.FullPath[:strings.Index(repo.FullPath, "/")]
+	repoName := repo.FullPath[strings.Index(repo.FullPath, "/")+1:]
+
+	// 4. 从 git 仓库中删除标签
+	if err := s.gitSvc.DeleteTag(owner, repoName, tagName); err != nil {
+		return err
+	}
+
+	// 5. 删除标签记录
+	if err := s.db.Delete(&tag).Error; err != nil {
+		return err
+	}
+
 	return nil
 }
 
 // ListTags 列出标签
 func (s *repoService) ListTags(ctx context.Context, repoID int64) ([]*repodomain.Tag, error) {
-	var tags []*repodomain.Tag
-	result := s.db.Where("repository_id = ?", repoID).Find(&tags)
-	if result.Error != nil {
-		return nil, result.Error
+	// 1. 验证仓库存在
+	var repo repodomain.Repository
+	if err := s.db.First(&repo, repoID).Error; err != nil {
+		return nil, err
 	}
+
+	// 2. 解析仓库路径，获取所有者和仓库名
+	owner := repo.FullPath[:strings.Index(repo.FullPath, "/")]
+	repoName := repo.FullPath[strings.Index(repo.FullPath, "/")+1:]
+
+	// 3. 从 git 仓库中获取标签列表
+	tagNames, err := s.gitSvc.ListTags(owner, repoName)
+	if err != nil {
+		return nil, err
+	}
+
+	// 4. 构建标签列表
+	var tags []*repodomain.Tag
+	for _, tagName := range tagNames {
+		// 尝试获取标签信息
+		tagInfo, err := s.gitSvc.GetTag(owner, repoName, tagName)
+		var message string
+		if err == nil && tagInfo != nil {
+			message = tagInfo.Message
+		}
+
+		tag := &repodomain.Tag{
+			RepositoryID: repoID,
+			Name:         tagName,
+			Message:      message,
+		}
+		tags = append(tags, tag)
+	}
+
 	return tags, nil
 }
 
 // GetTree 获取文件树
 func (s *repoService) GetTree(ctx context.Context, repoID int64, ref, path string) (*Tree, error) {
-	// 实现获取文件树逻辑
 	// 1. 验证仓库存在
-	// 2. 从 git 仓库中获取文件树
-	// 3. 构建树结构
-	// 4. 返回文件树
-	return nil, nil
+	var repo repodomain.Repository
+	if err := s.db.First(&repo, repoID).Error; err != nil {
+		return nil, err
+	}
+
+	// 2. 解析仓库路径，获取所有者和仓库名
+	owner := repo.FullPath[:strings.Index(repo.FullPath, "/")]
+	repoName := repo.FullPath[strings.Index(repo.FullPath, "/")+1:]
+
+	// 3. 从 git 仓库中获取文件列表
+	files, err := s.gitSvc.ListFiles(owner, repoName, ref, path)
+	if err != nil {
+		return nil, err
+	}
+
+	// 4. 构建树结构
+	tree := &Tree{
+		Path: path,
+		Type: "tree",
+		Tree: make([]*Tree, 0, len(files)),
+	}
+
+	for _, file := range files {
+		filePath := path
+		if filePath != "" && filePath != "/" {
+			filePath += "/"
+		}
+		filePath += file
+
+		// 暂时简单处理，实际应该根据文件类型设置 mode 和 type
+		tree.Tree = append(tree.Tree, &Tree{
+			Path: file,
+			Mode: "100644",
+			Type: "blob",
+			SHA:  "", // 暂时为空
+			Size: 0,   // 暂时为 0
+			URL:  "", // 暂时为空
+		})
+	}
+
+	return tree, nil
 }
 
 // GetBlob 获取文件内容
 func (s *repoService) GetBlob(ctx context.Context, repoID int64, ref, path string) (*Blob, error) {
-	// 实现获取文件内容逻辑
 	// 1. 验证仓库存在
-	// 2. 从 git 仓库中获取文件内容
-	// 3. 构建 blob 结构
-	// 4. 返回文件内容
-	return nil, nil
+	var repo repodomain.Repository
+	if err := s.db.First(&repo, repoID).Error; err != nil {
+		return nil, err
+	}
+
+	// 2. 解析仓库路径，获取所有者和仓库名
+	owner := repo.FullPath[:strings.Index(repo.FullPath, "/")]
+	repoName := repo.FullPath[strings.Index(repo.FullPath, "/")+1:]
+
+	// 3. 从 git 仓库中获取文件内容
+	content, err := s.gitSvc.GetFileContent(owner, repoName, ref, path)
+	if err != nil {
+		return nil, err
+	}
+
+	// 4. 构建 blob 结构
+	blob := &Blob{
+		Content:  content,
+		Encoding: "utf-8",
+		SHA:      "", // 暂时为空
+		Size:     len(content),
+		URL:      "", // 暂时为空
+	}
+
+	return blob, nil
 }
 
 // GetBlame 获取文件 blame 信息
 func (s *repoService) GetBlame(ctx context.Context, repoID int64, ref, path string) ([]*BlameLine, error) {
-	// 实现获取 blame 信息逻辑
 	// 1. 验证仓库存在
-	// 2. 从 git 仓库中获取 blame 信息
-	// 3. 构建 blame 行结构
-	// 4. 返回 blame 信息
-	return nil, nil
+	var repo repodomain.Repository
+	if err := s.db.First(&repo, repoID).Error; err != nil {
+		return nil, err
+	}
+
+	// 2. 解析仓库路径，获取所有者和仓库名
+	owner := repo.FullPath[:strings.Index(repo.FullPath, "/")]
+	repoName := repo.FullPath[strings.Index(repo.FullPath, "/")+1:]
+
+	// 3. 从 git 仓库中获取文件内容
+	content, err := s.gitSvc.GetFileContent(owner, repoName, ref, path)
+	if err != nil {
+		return nil, err
+	}
+
+	// 4. 构建 blame 行结构（简化实现，实际应该使用 git blame 命令）
+	var blameLines []*BlameLine
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		blameLine := &BlameLine{
+			Line:      i + 1,
+			CommitSHA: "", // 暂时为空
+			Author:    "", // 暂时为空
+			Date:      "", // 暂时为空
+			Content:   line,
+		}
+		blameLines = append(blameLines, blameLine)
+	}
+
+	return blameLines, nil
 }
 
 // GetRawFile 获取原始文件
 func (s *repoService) GetRawFile(ctx context.Context, repoID int64, ref, path string) ([]byte, error) {
-	// 实现获取原始文件逻辑
 	// 1. 验证仓库存在
-	// 2. 从 git 仓库中获取原始文件内容
-	// 3. 返回文件内容
-	return nil, nil
+	var repo repodomain.Repository
+	if err := s.db.First(&repo, repoID).Error; err != nil {
+		return nil, err
+	}
+
+	// 2. 解析仓库路径，获取所有者和仓库名
+	owner := repo.FullPath[:strings.Index(repo.FullPath, "/")]
+	repoName := repo.FullPath[strings.Index(repo.FullPath, "/")+1:]
+
+	// 3. 从 git 仓库中获取文件内容
+	content, err := s.gitSvc.GetFileContent(owner, repoName, ref, path)
+	if err != nil {
+		return nil, err
+	}
+
+	return []byte(content), nil
 }
 
 // SearchCode 搜索代码
 func (s *repoService) SearchCode(ctx context.Context, query *SearchQuery) ([]*SearchResult, int64, error) {
-	// 实现代码搜索逻辑
-	// 1. 构建搜索查询
-	// 2. 执行搜索
-	// 3. 处理搜索结果
-	// 4. 返回搜索结果
-	return nil, 0, nil
+	// 1. 构建搜索结果（简化实现，实际应该使用 Meilisearch）
+	var results []*SearchResult
+	var total int64 = 0
+
+	// 2. 模拟搜索结果
+	// 实际实现应该使用 Meilisearch 或其他搜索引擎
+	// 这里只是返回一个空结果，作为占位符
+
+	return results, total, nil
 }
 
 // StarRepo 星标仓库

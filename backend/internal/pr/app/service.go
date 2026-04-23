@@ -23,7 +23,7 @@ type PRService interface {
 	ListPRs(ctx context.Context, filter *domain.PRFilter) ([]*domain.PullRequest, int64, error)
 
 	// PR 操作
-	MergePR(ctx context.Context, prID int, userID int) (*domain.PullRequest, error)
+	MergePR(ctx context.Context, prID int, userID int, mergeStrategy string) (*domain.PullRequest, error)
 	ClosePR(ctx context.Context, prID int, userID int) (*domain.PullRequest, error)
 	ReopenPR(ctx context.Context, prID int, userID int) (*domain.PullRequest, error)
 
@@ -182,7 +182,7 @@ func (s *prService) ListPRs(ctx context.Context, filter *domain.PRFilter) ([]*do
 }
 
 // MergePR 合并PR
-func (s *prService) MergePR(ctx context.Context, prID int, userID int) (*domain.PullRequest, error) {
+func (s *prService) MergePR(ctx context.Context, prID int, userID int, mergeStrategy string) (*domain.PullRequest, error) {
 	var pr domain.PullRequest
 	if err := s.db.First(&pr, prID).Error; err != nil {
 		return nil, err
@@ -201,11 +201,25 @@ func (s *prService) MergePR(ctx context.Context, prID int, userID int) (*domain.
 		return nil, errors.New("PR is not mergeable")
 	}
 
+	// 验证合并策略
+	if mergeStrategy == "" {
+		mergeStrategy = "merge" // 默认策略
+	}
+	if mergeStrategy != "merge" && mergeStrategy != "squash" && mergeStrategy != "rebase" {
+		return nil, errors.New("invalid merge strategy")
+	}
+
+	// 执行合并操作
+	// 实际实现应该调用 git 命令执行合并
+	// 这里只是模拟合并操作
+	mergeCommitSHA := "placeholder_merge_sha"
+
 	// 更新PR状态
 	pr.State = "merged"
 	pr.MergedBy = userID
 	pr.MergedAt = time.Now()
-	pr.MergeCommitSHA = "placeholder_merge_sha"
+	pr.MergeCommitSHA = mergeCommitSHA
+	pr.MergeStrategy = mergeStrategy
 
 	if err := s.db.Save(&pr).Error; err != nil {
 		return nil, err

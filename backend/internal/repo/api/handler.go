@@ -23,6 +23,7 @@ type RepoAPI struct {
 	redis      *redis.Client
 	minio      *minio.Client
 	meili      meilisearch.ServiceManager
+	gitSvc     *git.Service
 }
 
 // NewRepoAPI 创建仓库 API 实例
@@ -33,6 +34,7 @@ func NewRepoAPI(db *gorm.DB, redis *redis.Client, minio *minio.Client, meili mei
 		redis: redis,
 		minio: minio,
 		meili: meili,
+		gitSvc: gitSvc,
 	}
 }
 
@@ -79,6 +81,10 @@ func (api *RepoAPI) RegisterRoutes(r *gin.Engine) {
 		repoGroup.POST("/:owner/:repo/star", middleware.AuthMiddleware(), api.StarRepo)
 		repoGroup.DELETE("/:owner/:repo/star", middleware.AuthMiddleware(), api.UnstarRepo)
 	}
+
+	// LFS 路由
+	lfsHandler := NewLFSHandler(api.gitSvc)
+	lfsHandler.RegisterRoutes(r.Group("/api/v1/repos"))
 }
 
 // ListRepos 列出仓库

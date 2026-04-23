@@ -1,6 +1,7 @@
 package git
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,12 +19,11 @@ func TestGitService_CreateRepo(t *testing.T) {
 	service := NewService(tempDir)
 
 	// 测试创建仓库
-	repoPath, err := service.CreateRepo("test-user", "test-repo")
+	err = service.CreateRepo(context.Background(), "test-user", "test-repo", true)
 	assert.NoError(t, err)
-	assert.NotEmpty(t, repoPath)
 
 	// 验证仓库目录是否存在
-	expectedPath := filepath.Join(tempDir, "test-user", "test-repo")
+	expectedPath := filepath.Join(tempDir, "test-user", "test-repo.git")
 	assert.DirExists(t, expectedPath)
 }
 
@@ -37,12 +37,12 @@ func TestGitService_ListBranches(t *testing.T) {
 	service := NewService(tempDir)
 
 	// 创建仓库
-	_, err = service.CreateRepo("test-user", "test-repo")
+	err = service.CreateRepo(context.Background(), "test-user", "test-repo", true)
 	assert.NoError(t, err)
 
 	// 测试列出分支
 	branches, err := service.ListBranches("test-user", "test-repo")
 	assert.NoError(t, err)
 	assert.NotEmpty(t, branches)
-	assert.Contains(t, branches, "main")
+	assert.Contains(t, branches, "master")
 }

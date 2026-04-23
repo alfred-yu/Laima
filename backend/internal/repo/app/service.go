@@ -39,6 +39,7 @@ type RepoService interface {
 
 	// 代码搜索
 	SearchCode(ctx context.Context, query *SearchQuery) ([]*SearchResult, int64, error)
+	IndexRepoCode(ctx context.Context, repoID int64) error
 
 	// 统计
 	StarRepo(ctx context.Context, repoID int64) error

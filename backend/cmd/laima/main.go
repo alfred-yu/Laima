@@ -13,7 +13,9 @@ import (
 	repoapp "laima/internal/repo/app"
 	userapi "laima/internal/user/api"
 	prapi "laima/internal/pr/api"
+	prapp "laima/internal/pr/app"
 	aiapi "laima/internal/ai/api"
+	aiapp "laima/internal/ai/app"
 	cicdapi "laima/internal/cicd/api"
 	issueapi "laima/internal/issue/api"
 	auditapi "laima/internal/audit/api"
@@ -154,6 +156,18 @@ func main() {
 		log.Printf("Warning: Running without audit service due to missing database")
 	}
 
+	// 初始化 PR 服务
+	var prService prapp.PRService
+	if db != nil {
+		prService = prapp.NewPRService(db, gitSvc)
+	}
+
+	// 初始化 AI 服务
+	var aiService aiapp.AIService
+	if db != nil {
+		aiService = aiapp.NewAIService(db, gitSvc, prService)
+	}
+
 	// 注册 API 路由
 	if db != nil {
 		repoAPI := repoapi.NewRepoAPI(db, redisClient, minioClient, meiliClient, gitSvc)
@@ -165,7 +179,7 @@ func main() {
 		prAPI := prapi.NewPRAPI(db, gitSvc)
 		prAPI.RegisterRoutes(r)
 
-		aiAPI := aiapi.NewAIApi(db)
+		aiAPI := aiapi.NewAIApi(db, aiService)
 		aiAPI.RegisterRoutes(r)
 
 		cicdAPI := cicdapi.NewCICDApi(db)

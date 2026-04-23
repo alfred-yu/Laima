@@ -17,9 +17,9 @@ type AIApi struct {
 }
 
 // NewAIApi 创建AI API实例
-func NewAIApi(db *gorm.DB) *AIApi {
+func NewAIApi(db *gorm.DB, aiService app.AIService) *AIApi {
 	return &AIApi{
-		aiService: app.NewAIService(db),
+		aiService: aiService,
 		db:        db,
 	}
 }

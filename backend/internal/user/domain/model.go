@@ -4,6 +4,69 @@ import (
 	"time"
 )
 
+// 角色常量
+const (
+	RoleOwner         = "owner"
+	RoleMaintainer    = "maintainer"
+	RoleDeveloper     = "developer"
+	RoleMember        = "member"
+)
+
+// 权限常量
+const (
+	PermissionRepoRead        = "repo:read"
+	PermissionRepoWrite       = "repo:write"
+	PermissionRepoAdmin       = "repo:admin"
+	PermissionPRRead          = "pr:read"
+	PermissionPRWrite         = "pr:write"
+	PermissionPRMerge         = "pr:merge"
+	PermissionBranchCreate    = "branch:create"
+	PermissionBranchDelete    = "branch:delete"
+	PermissionTagCreate       = "tag:create"
+	PermissionTagDelete       = "tag:delete"
+	PermissionMemberRead      = "member:read"
+	PermissionMemberWrite     = "member:write"
+	PermissionMemberAdmin     = "member:admin"
+	PermissionOrgRead         = "org:read"
+	PermissionOrgWrite        = "org:write"
+	PermissionOrgAdmin        = "org:admin"
+)
+
+// 角色权限映射
+var RolePermissions = map[string][]string{
+	RoleOwner: {
+		PermissionRepoRead, PermissionRepoWrite, PermissionRepoAdmin,
+		PermissionPRRead, PermissionPRWrite, PermissionPRMerge,
+		PermissionBranchCreate, PermissionBranchDelete,
+		PermissionTagCreate, PermissionTagDelete,
+		PermissionMemberRead, PermissionMemberWrite, PermissionMemberAdmin,
+		PermissionOrgRead, PermissionOrgWrite, PermissionOrgAdmin,
+	},
+	RoleMaintainer: {
+		PermissionRepoRead, PermissionRepoWrite,
+		PermissionPRRead, PermissionPRWrite, PermissionPRMerge,
+		PermissionBranchCreate, PermissionBranchDelete,
+		PermissionTagCreate, PermissionTagDelete,
+		PermissionMemberRead, PermissionMemberWrite,
+		PermissionOrgRead,
+	},
+	RoleDeveloper: {
+		PermissionRepoRead, PermissionRepoWrite,
+		PermissionPRRead, PermissionPRWrite,
+		PermissionBranchCreate,
+		PermissionTagCreate,
+		PermissionMemberRead,
+		PermissionOrgRead,
+	},
+	RoleMember: {
+		PermissionRepoRead,
+		PermissionPRRead,
+		PermissionMemberRead,
+		PermissionOrgRead,
+	},
+}
+
+
 // User 用户模型
 type User struct {
 	ID           int       `json:"id" gorm:"primaryKey"`

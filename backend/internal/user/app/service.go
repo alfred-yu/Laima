@@ -64,6 +64,8 @@ type UserService interface {
 	CheckOrganizationPermission(orgID, userID int, requiredRole string) (bool, error)
 	CheckRepositoryPermission(repoID, userID int, requiredRole string) (bool, error)
 	CheckUserPermission(userID, targetUserID int) (bool, error)
+	CheckRepositoryPermissionByPerm(repoID, userID int, permission string) (bool, error)
+	CheckOrganizationPermissionByPerm(orgID, userID int, permission string) (bool, error)
 }
 
 // userService 用户服务实现
@@ -435,6 +437,65 @@ func (s *userService) CheckUserPermission(userID, targetUserID int) (bool, error
 	// 只能访问自己的信息
 	return userID == targetUserID, nil
 }
+
+// CheckRepositoryPermissionByPerm 检查仓库操作权限
+func (s *userService) CheckRepositoryPermissionByPerm(repoID, userID int, permission string) (bool, error) {
+	// 获取仓库成员信息
+	var member domain.RepositoryMember
+	result := s.db.Where("repository_id = ? AND user_id = ?", repoID, userID).First(&member)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		// 不是仓库成员，检查是否是仓库所有者或组织成员
+		return false, nil
+	}
+	if result.Error != nil {
+		return false, result.Error
+	}
+
+	// 检查权限
+	return s.checkPermission(member.Role, permission)
+}
+
+// CheckOrganizationPermissionByPerm 检查组织操作权限
+func (s *userService) CheckOrganizationPermissionByPerm(orgID, userID int, permission string) (bool, error) {
+	// 获取组织成员信息
+	var member domain.OrganizationMember
+	result := s.db.Where("organization_id = ? AND user_id = ?", orgID, userID).First(&member)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		// 不是组织成员
+		return false, nil
+	}
+	if result.Error != nil {
+		return false, result.Error
+	}
+
+	// 检查权限
+	return s.checkPermission(member.Role, permission)
+}
+
+// checkRolePermission 检查角色是否满足所需角色要求
+func (s *userService) checkRolePermission(userRole, requiredRole string) (bool, error) {
+	userRoleLevel := rolePermissionMap[userRole]
+	requiredRoleLevel := rolePermissionMap[requiredRole]
+
+	return userRoleLevel >= requiredRoleLevel, nil
+}
+
+// checkPermission 检查角色是否有指定权限
+func (s *userService) checkPermission(role, permission string) (bool, error) {
+	permissions, ok := domain.RolePermissions[role]
+	if !ok {
+		return false, fmt.Errorf("unknown role: %s", role)
+	}
+
+	for _, p := range permissions {
+		if p == permission {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 
 // calculateSSHKeyFingerprint 计算SSH密钥指纹
 func calculateSSHKeyFingerprint(key string) (string, error) {

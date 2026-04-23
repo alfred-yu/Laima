@@ -1,9 +1,11 @@
 package git
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/go-git/go-git/v5"
@@ -438,4 +440,92 @@ func (s *Service) DownloadLFSObject(oid string) ([]byte, error) {
 	}
 
 	return content, nil
+}
+
+// MergeBranch 合并分支
+func (s *Service) MergeBranch(owner, name, sourceBranch, targetBranch, mergeStrategy string, authorName, authorEmail string) (string, error) {
+	repoPath := s.getRepoPath(owner, name)
+
+	// 创建临时目录进行合并操作
+	tempDir, err := os.MkdirTemp("", "laima-merge-*")
+	if err != nil {
+		return "", fmt.Errorf("创建临时目录失败: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// 克隆仓库
+	cmd := exec.Command("git", "clone", repoPath, tempDir)
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("克隆仓库失败: %w", err)
+	}
+
+	// 切换到目标分支
+	cmd = exec.Command("git", "-C", tempDir, "checkout", targetBranch)
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("切换到目标分支失败: %w", err)
+	}
+
+	// 设置用户信息
+	cmd = exec.Command("git", "-C", tempDir, "config", "user.name", authorName)
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("设置用户名失败: %w", err)
+	}
+	cmd = exec.Command("git", "-C", tempDir, "config", "user.email", authorEmail)
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("设置用户邮箱失败: %w", err)
+	}
+
+	// 执行合并
+	var mergeCmd *exec.Cmd
+	switch mergeStrategy {
+	case "merge":
+		// 普通合并
+		mergeCmd = exec.Command("git", "-C", tempDir, "merge", "--no-ff", "-m", fmt.Sprintf("Merge branch '%s' into %s", sourceBranch, targetBranch), sourceBranch)
+	case "squash":
+		// 压缩合并
+		return "", fmt.Errorf("squash merge 暂不支持")
+	case "rebase":
+		// 变基合并
+		return "", fmt.Errorf("rebase merge 暂不支持")
+	default:
+		return "", fmt.Errorf("不支持的合并策略: %s", mergeStrategy)
+	}
+
+	if err := mergeCmd.Run(); err != nil {
+		return "", fmt.Errorf("合并失败: %w", err)
+	}
+
+	// 获取合并提交的哈希
+	var stdout bytes.Buffer
+	cmd = exec.Command("git", "-C", tempDir, "rev-parse", "HEAD")
+	cmd.Stdout = &stdout
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("获取合并提交哈希失败: %w", err)
+	}
+	mergeHash := string(bytes.TrimSpace(stdout.Bytes()))
+
+	// 推送到远程仓库
+	cmd = exec.Command("git", "-C", tempDir, "push", "origin", targetBranch)
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("推送合并结果失败: %w", err)
+	}
+
+	return mergeHash, nil
+}
+
+// GetDiff 获取两个分支之间的差异
+func (s *Service) GetDiff(owner, name, baseBranch, headBranch string) (string, error) {
+	repoPath := s.getRepoPath(owner, name)
+
+	// 使用git diff命令获取差异
+	cmd := exec.Command("git", "-C", repoPath, "diff", fmt.Sprintf("%s..%s", baseBranch, headBranch))
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("获取差异失败: %w, stderr: %s", err, stderr.String())
+	}
+
+	return stdout.String(), nil
 }

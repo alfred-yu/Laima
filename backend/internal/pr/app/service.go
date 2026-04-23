@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"laima/internal/git"
 	repodomain "laima/internal/repo/domain"
+	userdomain "laima/internal/user/domain"
 	"laima/internal/pr/domain"
 	"time"
 
@@ -36,6 +38,9 @@ type PRService interface {
 	// 状态检查
 	CheckMergeability(ctx context.Context, prID int) (bool, error)
 	UpdateMergeState(ctx context.Context, prID int) error
+
+	// 差异获取
+	GetDiff(ctx context.Context, prID int) (string, error)
 }
 
 // prService PR服务实现
@@ -209,10 +214,39 @@ func (s *prService) MergePR(ctx context.Context, prID int, userID int, mergeStra
 		return nil, errors.New("invalid merge strategy")
 	}
 
+	// 获取仓库信息
+	var repo repodomain.Repository
+	if err := s.db.First(&repo, pr.RepositoryID).Error; err != nil {
+		return nil, err
+	}
+
+	// 解析所有者和仓库名
+	parts := strings.Split(repo.FullPath, "/")
+	if len(parts) < 2 {
+		return nil, errors.New("invalid repo path")
+	}
+	owner := parts[0]
+	repoName := parts[1]
+
+	// 获取用户信息
+	var user userdomain.User
+	if err := s.db.First(&user, userID).Error; err != nil {
+		return nil, err
+	}
+
 	// 执行合并操作
-	// 实际实现应该调用 git 命令执行合并
-	// 这里只是模拟合并操作
-	mergeCommitSHA := "placeholder_merge_sha"
+	mergeCommitSHA, err := s.gitSvc.MergeBranch(
+		owner,
+		repoName,
+		pr.SourceBranch,
+		pr.TargetBranch,
+		mergeStrategy,
+		user.Username,
+		user.Email,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("合并失败: %w", err)
+	}
 
 	// 更新PR状态
 	pr.State = "merged"
@@ -383,4 +417,34 @@ func (s *prService) UpdateMergeState(ctx context.Context, prID int) error {
 	}
 
 	return s.db.Save(&pr).Error
+}
+
+// GetDiff 获取PR的差异
+func (s *prService) GetDiff(ctx context.Context, prID int) (string, error) {
+	var pr domain.PullRequest
+	if err := s.db.First(&pr, prID).Error; err != nil {
+		return "", err
+	}
+
+	// 获取仓库信息
+	var repo repodomain.Repository
+	if err := s.db.First(&repo, pr.RepositoryID).Error; err != nil {
+		return "", err
+	}
+
+	// 解析所有者和仓库名
+	parts := strings.Split(repo.FullPath, "/")
+	if len(parts) < 2 {
+		return "", errors.New("invalid repo path")
+	}
+	owner := parts[0]
+	repoName := parts[1]
+
+	// 获取差异
+	diff, err := s.gitSvc.GetDiff(owner, repoName, pr.TargetBranch, pr.SourceBranch)
+	if err != nil {
+		return "", fmt.Errorf("获取差异失败: %w", err)
+	}
+
+	return diff, nil
 }

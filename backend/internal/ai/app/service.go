@@ -2,10 +2,17 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"laima/internal/ai/domain"
+	"laima/internal/git"
+	prapp "laima/internal/pr/app"
+	prdomain "laima/internal/pr/domain"
+	repodomain "laima/internal/repo/domain"
 
 	"gorm.io/gorm"
 )
+
 
 // AIService AI服务接口
 type AIService interface {
@@ -30,12 +37,18 @@ type AIService interface {
 
 // aiService AI服务实现
 type aiService struct {
-	db *gorm.DB
+	db     *gorm.DB
+	gitSvc *git.Service
+	prSvc  prapp.PRService
 }
 
 // NewAIService 创建AI服务实例
-func NewAIService(db *gorm.DB) AIService {
-	return &aiService{db: db}
+func NewAIService(db *gorm.DB, gitSvc *git.Service, prSvc prapp.PRService) AIService {
+	return &aiService{
+		db:     db,
+		gitSvc: gitSvc,
+		prSvc:  prSvc,
+	}
 }
 
 // TriggerAIReview 触发AI审查
@@ -51,31 +64,118 @@ func (s *aiService) TriggerAIReview(ctx context.Context, req *domain.AIReviewReq
 		return nil, err
 	}
 
-	// 异步执行AI审查（模拟）
+	// 异步执行AI审查
 	go func() {
 		ctx := context.Background()
 		_ = s.UpdateAIReviewStatus(ctx, review.ID, domain.AIReviewStatusRunning)
 
-		// 模拟AI审查过程
-		issues := []*domain.AIReviewIssue{
-			{
-				AIReviewID:    review.ID,
-				PullRequestID: req.PullRequestID,
-				Severity:      domain.AIReviewSeverityMedium,
-				Category:      "code_quality",
-				Title:         "代码可读性改进建议",
-				Description:   "建议增加注释提高代码可读性",
-				Path:          "src/main.go",
-				Line:          42,
-				Suggestion:    "添加函数和关键逻辑的注释",
-				Confidence:    0.85,
-			},
+		// 获取仓库信息
+		var repo repodomain.Repository
+		if err := s.db.First(&repo, int64(req.RepositoryID)).Error; err != nil {
+			_ = s.FailAIReview(ctx, review.ID, fmt.Sprintf("获取仓库信息失败: %v", err))
+			return
 		}
 
+		// 解析所有者和仓库名
+		parts := strings.Split(repo.FullPath, "/")
+		if len(parts) < 2 {
+			_ = s.FailAIReview(ctx, review.ID, "无效的仓库路径")
+			return
+		}
+		owner := parts[0]
+		repoName := parts[1]
+
+		// 获取PR信息以获取分支
+		var pr prdomain.PullRequest
+		if err := s.db.First(&pr, req.PullRequestID).Error; err != nil {
+			_ = s.FailAIReview(ctx, review.ID, fmt.Sprintf("获取PR信息失败: %v", err))
+			return
+		}
+
+		// 获取变更diff
+		diff, err := s.gitSvc.GetDiff(owner, repoName, pr.TargetBranch, pr.SourceBranch)
+		if err != nil {
+			_ = s.FailAIReview(ctx, review.ID, fmt.Sprintf("获取变更diff失败: %v", err))
+			return
+		}
+
+		// 解析diff并提取变更（简化实现）
+		issues := s.extractIssuesFromDiff(diff, review.ID, req.PullRequestID)
+
+		// 完成审查
 		_ = s.CompleteAIReview(ctx, review.ID, 0.88, "代码整体质量良好，有少量改进建议", issues)
 	}()
 
 	return review, nil
+}
+
+// extractIssuesFromDiff 从diff中提取审查问题（简化实现）
+func (s *aiService) extractIssuesFromDiff(diff string, reviewID, prID int) []*domain.AIReviewIssue {
+	var issues []*domain.AIReviewIssue
+
+	// 简单解析diff，查找变更的文件
+	lines := strings.Split(diff, "\n")
+	var currentFile string
+	var lineNumber int
+
+	for _, line := range lines {
+		if strings.HasPrefix(line, "diff --git") {
+			// 新文件开始
+			parts := strings.Split(line, " ")
+			if len(parts) >= 4 {
+				currentFile = strings.TrimPrefix(parts[2], "a/")
+			}
+			lineNumber = 0
+			continue
+		}
+
+		if strings.HasPrefix(line, "@@") {
+			// 解析行号信息
+			continue
+		}
+
+		if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
+			lineNumber++
+			// 简化的问题检测逻辑
+			content := strings.TrimSpace(strings.TrimPrefix(line, "+"))
+			if len(content) > 0 {
+				// 检查一些常见问题（简化示例）
+				if strings.Contains(content, "TODO") || strings.Contains(content, "FIXME") {
+					issues = append(issues, &domain.AIReviewIssue{
+						AIReviewID:    reviewID,
+						PullRequestID: prID,
+						Severity:      domain.AIReviewSeverityLow,
+						Category:      "code_quality",
+						Title:         "待办事项标记",
+						Description:   "代码中包含待办事项标记，建议在合并前完成",
+						Path:          currentFile,
+						Line:          lineNumber,
+						Suggestion:    "完成相关功能或移除待办标记",
+						Confidence:    0.90,
+					})
+				}
+
+				if len(content) > 120 {
+					issues = append(issues, &domain.AIReviewIssue{
+						AIReviewID:    reviewID,
+						PullRequestID: prID,
+						Severity:      domain.AIReviewSeverityLow,
+						Category:      "code_style",
+						Title:         "行过长",
+						Description:   "代码行过长，建议拆分为多行提高可读性",
+						Path:          currentFile,
+						Line:          lineNumber,
+						Suggestion:    "将长行拆分为多行",
+						Confidence:    0.85,
+					})
+				}
+			}
+		} else if !strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
+			lineNumber++
+		}
+	}
+
+	return issues
 }
 
 // GetAIReview 根据ID获取AI审查
@@ -201,12 +301,18 @@ func (s *aiService) FailAIReview(ctx context.Context, reviewID int, errorMsg str
 
 // TriggerAIReviewForPR 为PR触发AI审查
 func (s *aiService) TriggerAIReviewForPR(ctx context.Context, prID int) (*domain.AIReview, error) {
-	// 模拟获取PR信息
+	// 获取PR信息
+	pr, err := s.prSvc.GetPR(ctx, prID)
+	if err != nil {
+		return nil, fmt.Errorf("获取PR信息失败: %w", err)
+	}
+
+	// 构建审查请求
 	req := &domain.AIReviewRequest{
 		PullRequestID: prID,
-		RepositoryID:  1,
-		HeadCommitSHA: "abc123",
-		BaseCommitSHA: "def456",
+		RepositoryID:  pr.RepositoryID,
+		HeadCommitSHA: pr.HeadCommitSHA,
+		BaseCommitSHA: pr.BaseCommitSHA,
 	}
 
 	// 触发审查

@@ -1,5 +1,5 @@
-# 使用 Node.js 18 作为基础镜像，使用国内镜像源
-FROM registry.cn-hangzhou.aliyuncs.com/google_containers/node:18-alpine
+# 使用 Node.js 18 作为基础镜像，使用1ms.run镜像源
+FROM 1ms.run/library/node:18-alpine
 
 # 设置工作目录
 WORKDIR /app

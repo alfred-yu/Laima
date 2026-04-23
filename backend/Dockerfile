@@ -1,4 +1,4 @@
-FROM registry.cn-hangzhou.aliyuncs.com/google_containers/golang:1.25-alpine AS builder
+FROM 1ms.run/library/golang:1.25-alpine AS builder
 
 WORKDIR /app
 
@@ -10,7 +10,7 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o laima ./cmd/laima
 
-FROM registry.cn-hangzhou.aliyuncs.com/google_containers/alpine:latest
+FROM 1ms.run/library/alpine:latest
 
 WORKDIR /app
 

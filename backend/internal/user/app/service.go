@@ -1,6 +1,8 @@
 package app
 
 import (
+	"crypto/md5"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"laima/internal/user/domain"
@@ -8,6 +10,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/crypto/ssh"
 	"gorm.io/gorm"
 )
 
@@ -50,6 +53,12 @@ type UserService interface {
 	UpdateRepositoryMemberRole(repoID, userID int, role string) (*domain.RepositoryMember, error)
 	GetRepositoryMembers(repoID int) ([]*domain.RepositoryMember, error)
 	GetRepositoryMember(repoID, userID int) (*domain.RepositoryMember, error)
+
+	// SSH密钥管理
+	AddSSHKey(userID int, key, title string) (*domain.SSHKey, error)
+	RemoveSSHKey(id, userID int) error
+	GetSSHKeys(userID int) ([]*domain.SSHKey, error)
+	GetSSHKeyByFingerprint(fingerprint string) (*domain.SSHKey, error)
 
 	// 权限检查
 	CheckOrganizationPermission(orgID, userID int, requiredRole string) (bool, error)
@@ -425,4 +434,96 @@ func (s *userService) CheckRepositoryPermission(repoID, userID int, requiredRole
 func (s *userService) CheckUserPermission(userID, targetUserID int) (bool, error) {
 	// 只能访问自己的信息
 	return userID == targetUserID, nil
+}
+
+// calculateSSHKeyFingerprint 计算SSH密钥指纹
+func calculateSSHKeyFingerprint(key string) (string, error) {
+	// 解析SSH密钥
+	parsedKey, err := ssh.ParsePublicKey([]byte(key))
+	if err != nil {
+		return "", err
+	}
+
+	// 计算MD5指纹
+	md5Hash := md5.Sum(parsedKey.Marshal())
+	fingerprint := base64.StdEncoding.EncodeToString(md5Hash[:])
+
+	return fingerprint, nil
+}
+
+// AddSSHKey 添加SSH密钥
+func (s *userService) AddSSHKey(userID int, key, title string) (*domain.SSHKey, error) {
+	// 解析和验证SSH密钥
+	_, err := ssh.ParsePublicKey([]byte(key))
+	if err != nil {
+		return nil, fmt.Errorf("invalid SSH key: %w", err)
+	}
+
+	// 计算密钥指纹
+	fingerprint, err := calculateSSHKeyFingerprint(key)
+	if err != nil {
+		return nil, err
+	}
+
+	// 检查指纹是否已存在
+	var existingKey domain.SSHKey
+	result := s.db.Where("fingerprint = ?", fingerprint).First(&existingKey)
+	if result.Error == nil {
+		return nil, errors.New("SSH key with this fingerprint already exists")
+	} else if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, result.Error
+	}
+
+	// 创建新的SSH密钥记录
+	sshKey := &domain.SSHKey{
+		UserID:      userID,
+		Key:         key,
+		Fingerprint: fingerprint,
+		Title:       title,
+	}
+
+	if err := s.db.Create(sshKey).Error; err != nil {
+		return nil, err
+	}
+
+	return sshKey, nil
+}
+
+// RemoveSSHKey 删除SSH密钥
+func (s *userService) RemoveSSHKey(id, userID int) error {
+	// 确保密钥属于该用户
+	var sshKey domain.SSHKey
+	result := s.db.Where("id = ? AND user_id = ?", id, userID).First(&sshKey)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return errors.New("SSH key not found")
+		}
+		return result.Error
+	}
+
+	// 删除密钥
+	return s.db.Delete(&sshKey).Error
+}
+
+// GetSSHKeys 获取用户的所有SSH密钥
+func (s *userService) GetSSHKeys(userID int) ([]*domain.SSHKey, error) {
+	var keys []*domain.SSHKey
+	result := s.db.Where("user_id = ?", userID).Find(&keys)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return keys, nil
+}
+
+// GetSSHKeyByFingerprint 根据指纹获取SSH密钥
+func (s *userService) GetSSHKeyByFingerprint(fingerprint string) (*domain.SSHKey, error) {
+	var key domain.SSHKey
+	result := s.db.Where("fingerprint = ?", fingerprint).First(&key)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, errors.New("SSH key not found")
+		}
+		return nil, result.Error
+	}
+	return &key, nil
 }

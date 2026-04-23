@@ -70,6 +70,15 @@ func (api *UserAPI) RegisterRoutes(r *gin.Engine) {
 		repoMembers.DELETE("/:user_id", api.RemoveRepositoryMember)
 		repoMembers.PUT("/:user_id/role", api.UpdateRepositoryMemberRole)
 	}
+
+	// SSH密钥路由
+	sshKeys := r.Group("/api/users/me/ssh-keys")
+	sshKeys.Use(middleware.AuthMiddleware())
+	{
+		sshKeys.GET("/", api.GetSSHKeys)
+		sshKeys.POST("/", api.AddSSHKey)
+		sshKeys.DELETE("/:id", api.RemoveSSHKey)
+	}
 }
 
 // getCurrentUserID 从上下文中获取当前用户ID
@@ -468,4 +477,59 @@ func (api *UserAPI) UpdateRepositoryMemberRole(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, member)
+}
+
+// GetSSHKeys 获取当前用户的SSH密钥列表
+func (api *UserAPI) GetSSHKeys(c *gin.Context) {
+	userID := getCurrentUserID(c)
+
+	keys, err := api.userService.GetSSHKeys(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, keys)
+}
+
+// AddSSHKey 添加SSH密钥
+func (api *UserAPI) AddSSHKey(c *gin.Context) {
+	userID := getCurrentUserID(c)
+
+	var req struct {
+		Key   string `json:"key" binding:"required"`
+		Title string `json:"title"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	key, err := api.userService.AddSSHKey(userID, req.Key, req.Title)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, key)
+}
+
+// RemoveSSHKey 删除SSH密钥
+func (api *UserAPI) RemoveSSHKey(c *gin.Context) {
+	userID := getCurrentUserID(c)
+
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid SSH key ID"})
+		return
+	}
+
+	if err := api.userService.RemoveSSHKey(id, userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "SSH key removed successfully"})
 }

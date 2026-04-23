@@ -10,6 +10,7 @@ import (
 	"time"
 
 	repoapi "laima/internal/repo/api"
+	repoapp "laima/internal/repo/app"
 	userapi "laima/internal/user/api"
 	prapi "laima/internal/pr/api"
 	aiapi "laima/internal/ai/api"
@@ -18,6 +19,7 @@ import (
 	auditapi "laima/internal/audit/api"
 	"laima/internal/git"
 	"laima/internal/middleware"
+	"laima/internal/user/app"
 	"laima/internal/user/domain"
 	repodomain "laima/internal/repo/domain"
 	prdomain "laima/internal/pr/domain"
@@ -93,11 +95,27 @@ func main() {
 		meiliClient = nil
 	}
 
+	// 初始化用户服务
+	var userService app.UserService
+	if db != nil {
+		userService = app.NewUserService(db)
+	} else {
+		log.Printf("Warning: Running without user service due to missing database")
+	}
+
 	// 初始化 Git 服务
 	gitSvc := initGitService()
 
+	// 初始化仓库服务
+	if db != nil {
+		repoService := repoapp.NewRepoService(db, gitSvc, meiliClient)
+		_ = repoService // 暂时使用变量，避免未使用的警告
+	} else {
+		log.Printf("Warning: Running without repo service due to missing database")
+	}
+
 	// 初始化并启动 SSH 服务器
-	sshServer := initSSHServer(gitSvc)
+	sshServer := initSSHServer(gitSvc, userService)
 	go func() {
 		if err := sshServer.Start(context.Background()); err != nil {
 			log.Printf("SSH 服务器启动失败: %v", err)
@@ -227,7 +245,7 @@ func initGitService() *git.Service {
 }
 
 // initSSHServer 初始化 SSH 服务器
-func initSSHServer(gitSvc *git.Service) *git.SSHServer {
+func initSSHServer(gitSvc *git.Service, userService app.UserService) *git.SSHServer {
 	// 获取 SSH 服务器配置
 	sshAddr := os.Getenv("LAIMA_SSH_PORT")
 	if sshAddr == "" {
@@ -247,7 +265,7 @@ func initSSHServer(gitSvc *git.Service) *git.SSHServer {
 	}
 
 	// 创建并返回 SSH 服务器
-	return git.NewSSHServer(":"+sshAddr, hostKeyPath, gitSvc.GetRepoBasePath(), gitSvc)
+	return git.NewSSHServer(":"+sshAddr, hostKeyPath, gitSvc.GetRepoBasePath(), gitSvc, userService)
 }
 
 // 初始化数据库连接

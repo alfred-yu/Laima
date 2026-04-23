@@ -47,6 +47,16 @@ type RepositoryMember struct {
 	CreatedAt    time.Time `json:"created_at" gorm:"not null;default:now()"`
 }
 
+// SSHKey SSH密钥模型
+type SSHKey struct {
+	ID          int       `json:"id" gorm:"primaryKey"`
+	UserID      int       `json:"user_id" gorm:"not null;index"`
+	Key         string    `json:"key" gorm:"not null"`
+	Fingerprint string    `json:"fingerprint" gorm:"not null;uniqueIndex"`
+	Title       string    `json:"title"`
+	CreatedAt   time.Time `json:"created_at" gorm:"not null;default:now()"`
+}
+
 // LoginRequest 登录请求
 type LoginRequest struct {
 	Username string `json:"username" binding:"required"`

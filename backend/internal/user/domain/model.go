@@ -12,7 +12,7 @@ type User struct {
 	PasswordHash string    `json:"-" gorm:"not null"`
 	AvatarURL    string    `json:"avatar_url"`
 	Bio          string    `json:"bio"`
-	Settings     string    `json:"settings" gorm:"type:jsonb;default:'{}'"`
+	Settings     string    `json:"settings" gorm:"type:text;default:'{}'"`
 	CreatedAt    time.Time `json:"created_at" gorm:"not null;default:now()"`
 	UpdatedAt    time.Time `json:"updated_at" gorm:"not null;default:now()"`
 }
@@ -24,7 +24,7 @@ type Organization struct {
 	DisplayName string    `json:"display_name"`
 	Description string    `json:"description"`
 	OwnerID     int       `json:"owner_id" gorm:"not null"`
-	Settings    string    `json:"settings" gorm:"type:jsonb;default:'{}'"`
+	Settings    string    `json:"settings" gorm:"type:text;default:'{}'"`
 	CreatedAt   time.Time `json:"created_at" gorm:"not null;default:now()"`
 	UpdatedAt   time.Time `json:"updated_at" gorm:"not null;default:now()"`
 }

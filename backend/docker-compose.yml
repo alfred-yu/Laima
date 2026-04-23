@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: 1ms.run/library/postgres:16
+    image: postgres:16
     container_name: laima-postgres
     environment:
       POSTGRES_DB: laima
@@ -18,7 +18,7 @@ services:
       retries: 5
 
   redis:
-    image: 1ms.run/library/redis:7.2
+    image: redis:7.2
     container_name: laima-redis
     ports:
       - "6379:6379"
@@ -29,7 +29,7 @@ services:
       retries: 5
 
   meilisearch:
-    image: 1ms.run/getmeili/meilisearch:v1.6
+    image: getmeili/meilisearch:v1.6
     container_name: laima-meilisearch
     ports:
       - "7700:7700"
@@ -44,7 +44,7 @@ services:
       retries: 5
 
   minio:
-    image: 1ms.run/minio/minio:latest
+    image: minio/minio:latest
     container_name: laima-minio
     ports:
       - "9000:9000"

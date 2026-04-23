@@ -31,9 +31,28 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/redis/go-redis/v9"
 	"github.com/meilisearch/meilisearch-go"
+	"github.com/swaggo/files"
+	"github.com/swaggo/gin-swagger"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+// @title Laima API
+// @version 1.0
+// @description Laima 代码托管平台 API 文档
+// @termsOfService http://swagger.io/terms/
+
+// @contact.name API Support
+// @contact.url http://www.example.com/support
+// @contact.email support@example.com
+
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host localhost:8080
+// @BasePath /api
+// @schemes http https
+
 
 func main() {
 	// 初始化数据库连接
@@ -122,6 +141,9 @@ func main() {
 	// 注册审计路由
 	auditAPI := auditapi.NewAuditAPI(db)
 	auditAPI.RegisterRoutes(r)
+
+	// 注册 Swagger 路由
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {

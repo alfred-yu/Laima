@@ -28,6 +28,7 @@ const (
 type Pipeline struct {
 	ID           int       `json:"id" gorm:"primaryKey"`
 	RepositoryID int       `json:"repository_id" gorm:"not null;index"`
+	PRID         int       `json:"pr_id" gorm:"index"`
 	CommitSHA    string    `json:"commit_sha" gorm:"not null;size:40"`
 	Ref          string    `json:"ref" gorm:"not null"`
 	Status       string    `json:"status" gorm:"not null;default:'pending'"`
@@ -54,6 +55,7 @@ type Job struct {
 // PipelineRequest 流水线请求
 type PipelineRequest struct {
 	RepositoryID int    `json:"repository_id" binding:"required"`
+	PRID         int    `json:"pr_id"`
 	CommitSHA    string `json:"commit_sha" binding:"required"`
 	Ref          string `json:"ref" binding:"required"`
 	Trigger      string `json:"trigger" binding:"required"`

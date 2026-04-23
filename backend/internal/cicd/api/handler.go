@@ -17,9 +17,9 @@ type CICDApi struct {
 }
 
 // NewCICDApi 创建CI/CD API实例
-func NewCICDApi(db *gorm.DB) *CICDApi {
+func NewCICDApi(db *gorm.DB, cicdService app.CICDService) *CICDApi {
 	return &CICDApi{
-		cicdService: app.NewCICDService(db),
+		cicdService: cicdService,
 		db:          db,
 	}
 }

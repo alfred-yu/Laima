@@ -2,7 +2,10 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"gopkg.in/yaml.v3"
 	"laima/internal/cicd/domain"
+	prapp "laima/internal/pr/app"
 
 	"gorm.io/gorm"
 )
@@ -31,12 +34,13 @@ type CICDService interface {
 
 // cicdService CI/CD服务实现
 type cicdService struct {
-	db *gorm.DB
+	db    *gorm.DB
+	prSvc prapp.PRService
 }
 
 // NewCICDService 创建CI/CD服务实例
-func NewCICDService(db *gorm.DB) CICDService {
-	return &cicdService{db: db}
+func NewCICDService(db *gorm.DB, prSvc prapp.PRService) CICDService {
+	return &cicdService{db: db, prSvc: prSvc}
 }
 
 // CreatePipeline 创建流水线
@@ -44,6 +48,7 @@ func (s *cicdService) CreatePipeline(ctx context.Context, req *domain.PipelineRe
 	// 创建流水线记录
 	pipeline := &domain.Pipeline{
 		RepositoryID: req.RepositoryID,
+		PRID:         req.PRID,
 		CommitSHA:    req.CommitSHA,
 		Ref:          req.Ref,
 		Status:       domain.PipelineStatusPending,
@@ -54,22 +59,28 @@ func (s *cicdService) CreatePipeline(ctx context.Context, req *domain.PipelineRe
 		return nil, err
 	}
 
-	// 创建默认任务
-	jobs := []*domain.Job{
-		{
-			PipelineID: pipeline.ID,
-			Name:       "build",
-			Status:     domain.JobStatusPending,
-			Stage:      "build",
-		},
-		{
-			PipelineID: pipeline.ID,
-			Name:       "test",
-			Status:     domain.JobStatusPending,
-			Stage:      "test",
-		},
+	var jobs []*domain.Job
+
+	// 检查是否有YAML配置
+	if pipeline.YAMLContent != "" {
+		// 解析YAML配置
+		parsedJobs, err := s.ParsePipelineYAML(ctx, pipeline.YAMLContent)
+		if err != nil {
+			// 解析失败，使用默认任务
+			jobs = s.getDefaultJobs(pipeline.ID)
+		} else {
+			// 使用解析的任务
+			for _, job := range parsedJobs {
+				job.PipelineID = pipeline.ID
+			}
+			jobs = parsedJobs
+		}
+	} else {
+		// 使用默认任务
+		jobs = s.getDefaultJobs(pipeline.ID)
 	}
 
+	// 保存任务
 	for _, job := range jobs {
 		if err := s.db.Create(job).Error; err != nil {
 			return nil, err
@@ -79,13 +90,61 @@ func (s *cicdService) CreatePipeline(ctx context.Context, req *domain.PipelineRe
 	// 异步触发流水线执行
 	go func() {
 		ctx := context.Background()
-		_, _ = s.UpdateJobStatus(ctx, jobs[0].ID, domain.JobStatusRunning)
-		_, _ = s.UpdateJobStatus(ctx, jobs[0].ID, domain.JobStatusSuccess)
-		_, _ = s.UpdateJobStatus(ctx, jobs[1].ID, domain.JobStatusRunning)
-		_, _ = s.UpdateJobStatus(ctx, jobs[1].ID, domain.JobStatusSuccess)
+		for _, job := range jobs {
+			// 更新任务状态为运行中
+			_, _ = s.UpdateJobStatus(ctx, job.ID, domain.JobStatusRunning)
+			
+			// 模拟任务执行
+			s.executeJob(ctx, job)
+		}
 	}()
 
 	return pipeline, nil
+}
+
+// executeJob 执行单个任务
+func (s *cicdService) executeJob(ctx context.Context, job *domain.Job) {
+	// 模拟任务执行过程
+	log := "Starting job: " + job.Name + "\n"
+	
+	// 模拟执行脚本
+	simulatedScript := []string{
+		"echo 'Hello from '" + job.Name,
+		"echo 'Executing stage: '" + job.Stage,
+		"sleep 1", // 模拟执行时间
+		"echo 'Job completed successfully'",
+	}
+	
+	for _, script := range simulatedScript {
+		log += "$ " + script + "\n"
+		// 模拟命令输出
+		log += "Output: " + script + " executed\n"
+	}
+	
+	// 添加日志
+	_ = s.AddJobLog(ctx, job.ID, log)
+	
+	// 随机模拟成功或失败
+	// 这里简单起见，总是成功
+	_, _ = s.UpdateJobStatus(ctx, job.ID, domain.JobStatusSuccess)
+}
+
+// getDefaultJobs 获取默认任务列表
+func (s *cicdService) getDefaultJobs(pipelineID int) []*domain.Job {
+	return []*domain.Job{
+		{
+			PipelineID: pipelineID,
+			Name:       "build",
+			Status:     domain.JobStatusPending,
+			Stage:      "build",
+		},
+		{
+			PipelineID: pipelineID,
+			Name:       "test",
+			Status:     domain.JobStatusPending,
+			Stage:      "test",
+		},
+	}
 }
 
 // GetPipeline 根据ID获取流水线
@@ -202,24 +261,60 @@ func (s *cicdService) AddJobLog(ctx context.Context, jobID int, log string) erro
 	return s.db.Save(&job).Error
 }
 
+// PipelineYAML 表示CI/CD配置文件的结构
+type PipelineYAML struct {
+	Stages []string          `yaml:"stages"`
+	Jobs   map[string]JobYAML `yaml:"jobs"`
+}
+
+// JobYAML 表示单个任务的配置
+type JobYAML struct {
+	Stage    string   `yaml:"stage"`
+	Script   []string `yaml:"script"`
+	Artifacts []string `yaml:"artifacts"`
+	Only      []string `yaml:"only"`
+	Except    []string `yaml:"except"`
+}
+
 // ParsePipelineYAML 解析流水线YAML配置
 func (s *cicdService) ParsePipelineYAML(ctx context.Context, yamlContent string) ([]*domain.Job, error) {
-	// 实现YAML解析逻辑
-	// 1. 解析YAML文件
-	// 2. 提取stages和jobs
-	// 3. 构建任务列表
-	// 4. 返回任务列表
-	return nil, nil
+	// 解析YAML文件
+	var pipeline PipelineYAML
+	if err := yaml.Unmarshal([]byte(yamlContent), &pipeline); err != nil {
+		return nil, fmt.Errorf("解析YAML失败: %w", err)
+	}
+
+	// 构建任务列表
+	var jobs []*domain.Job
+	for jobName, jobConfig := range pipeline.Jobs {
+		job := &domain.Job{
+			Name:   jobName,
+			Status: domain.JobStatusPending,
+			Stage:  jobConfig.Stage,
+		}
+		jobs = append(jobs, job)
+	}
+
+	return jobs, nil
 }
 
 // TriggerPipelineForPR 为PR触发流水线
 func (s *cicdService) TriggerPipelineForPR(ctx context.Context, prID int) (*domain.Pipeline, error) {
-	req := &domain.PipelineRequest{
-		RepositoryID: 1,
-		CommitSHA:    "abc123",
-		Ref:          "refs/heads/feature-branch",
-		Trigger:      "pr",
+	// 获取PR信息
+	pr, err := s.prSvc.GetPR(ctx, prID)
+	if err != nil {
+		return nil, fmt.Errorf("获取PR信息失败: %w", err)
 	}
+
+	// 构建流水线请求
+	req := &domain.PipelineRequest{
+		RepositoryID: pr.RepositoryID,
+		CommitSHA:    pr.HeadCommitSHA,
+		Ref:          fmt.Sprintf("refs/heads/%s", pr.SourceBranch),
+		Trigger:      "pr",
+		PRID:         prID,
+	}
+
 	return s.CreatePipeline(ctx, req)
 }
 

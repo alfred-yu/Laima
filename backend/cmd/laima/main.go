@@ -17,6 +17,7 @@ import (
 	aiapi "laima/internal/ai/api"
 	aiapp "laima/internal/ai/app"
 	cicdapi "laima/internal/cicd/api"
+	cicdapp "laima/internal/cicd/app"
 	issueapi "laima/internal/issue/api"
 	auditapi "laima/internal/audit/api"
 	"laima/internal/git"
@@ -168,6 +169,12 @@ func main() {
 		aiService = aiapp.NewAIService(db, gitSvc, prService)
 	}
 
+	// 初始化 CICD 服务
+	var cicdService cicdapp.CICDService
+	if db != nil {
+		cicdService = cicdapp.NewCICDService(db, prService)
+	}
+
 	// 注册 API 路由
 	if db != nil {
 		repoAPI := repoapi.NewRepoAPI(db, redisClient, minioClient, meiliClient, gitSvc)
@@ -182,7 +189,7 @@ func main() {
 		aiAPI := aiapi.NewAIApi(db, aiService)
 		aiAPI.RegisterRoutes(r)
 
-		cicdAPI := cicdapi.NewCICDApi(db)
+		cicdAPI := cicdapi.NewCICDApi(db, cicdService)
 		cicdAPI.RegisterRoutes(r)
 
 		issueAPI := issueapi.NewIssueApi(db)

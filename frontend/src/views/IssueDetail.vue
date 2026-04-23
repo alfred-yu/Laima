@@ -52,7 +52,7 @@ const issue = ref({
     {
       id: 2,
       author: 'user3',
-      content: 'Found the bug! It's in the authentication service.',
+      content: 'Found the bug! It\'s in the authentication service.',
       time: '30分钟前'
     }
   ]

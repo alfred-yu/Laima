@@ -112,7 +112,7 @@ const loadRepos = async () => {
     isLoading.value = true
     error.value = ''
     
-    const response = await repoApi.listRepos()
+    const response = await repoApi.listRepos() as { items: any[] }
     repos.value = response.items || []
     repoStore.setRepos(repos.value)
   } catch (err: any) {

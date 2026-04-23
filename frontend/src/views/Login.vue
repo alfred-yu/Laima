@@ -64,7 +64,7 @@ const handleLogin = async () => {
     isLoading.value = true
     error.value = ''
     
-    const response = await authApi.login(form.value.username, form.value.password)
+    const response = await authApi.login(form.value.username, form.value.password) as { token: string; user: any }
     
     userStore.setToken(response.token)
     userStore.setUser(response.user)

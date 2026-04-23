@@ -87,7 +87,7 @@ const handleRegister = async () => {
       return
     }
     
-    const response = await authApi.register(form.value.username, form.value.email, form.value.password)
+    const response = await authApi.register(form.value.username, form.value.email, form.value.password) as { token: string; user: any }
     
     userStore.setToken(response.token)
     userStore.setUser(response.user)

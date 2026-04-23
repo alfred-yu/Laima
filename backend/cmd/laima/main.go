@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	repoapi "laima/internal/repo/api"
 	userapi "laima/internal/user/api"
@@ -33,7 +34,7 @@ import (
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/swaggo/files"
 	"github.com/swaggo/gin-swagger"
-	"gorm.io/driver/sqlite"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -55,7 +56,7 @@ import (
 
 
 func main() {
-	// 初始化数据库连接
+	// 初始化数据库连接 - 这是必需的
 	db, err := initDatabase()
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -67,17 +68,26 @@ func main() {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 
-	// 初始化 Redis 连接
-	redisClient, _ := initRedis()
+	// 初始化 Redis 连接 - 可选，如果失败则使用内存存储
+	redisClient, err := initRedis()
+	if err != nil {
+		log.Printf("Warning: Failed to connect to Redis: %v, using memory storage instead", err)
+		redisClient = nil
+	}
 
-	// 初始化 MinIO 客户端
-	minioClient, _ := initMinIO()
+	// 初始化 MinIO 客户端 - 可选，如果失败则使用本地存储
+	minioClient, err := initMinIO()
+	if err != nil {
+		log.Printf("Warning: Failed to connect to MinIO: %v, using local storage instead", err)
+		minioClient = nil
+	}
 
-	// 初始化 Meilisearch 客户端
+	// 初始化 Meilisearch 客户端 - 可选，如果失败则搜索功能受限
 	var meiliClient meilisearch.ServiceManager
-	meiliClient, _ = initMeilisearch()
-	if meiliClient == nil {
-		log.Println("Warning: Failed to connect to Meilisearch, search functionality will be limited")
+	meiliClient, err = initMeilisearch()
+	if err != nil {
+		log.Printf("Warning: Failed to connect to Meilisearch: %v, search functionality will be limited", err)
+		meiliClient = nil
 	}
 
 	// 初始化 Git 服务
@@ -201,11 +211,48 @@ func initGitService() *git.Service {
 
 // 初始化数据库连接
 func initDatabase() (*gorm.DB, error) {
-	// 使用 SQLite 作为内存数据库
-	db, err := gorm.Open(sqlite.Open("file::memory:"), &gorm.Config{})
+	dbHost := os.Getenv("LAIMA_DB_HOST")
+	if dbHost == "" {
+		dbHost = "localhost"
+	}
+
+	dbPort := os.Getenv("LAIMA_DB_PORT")
+	if dbPort == "" {
+		dbPort = "5432"
+	}
+
+	dbName := os.Getenv("LAIMA_DB_NAME")
+	if dbName == "" {
+		dbName = "laima"
+	}
+
+	dbUser := os.Getenv("LAIMA_DB_USER")
+	if dbUser == "" {
+		dbUser = "laima"
+	}
+
+	dbPassword := os.Getenv("LAIMA_DB_PASSWORD")
+	if dbPassword == "" {
+		dbPassword = "laima123"
+	}
+
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		dbHost, dbPort, dbUser, dbPassword, dbName)
+
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return nil, err
 	}
+
+	// 设置连接池
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, err
+	}
+
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(100)
+	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	return db, nil
 }
@@ -219,9 +266,7 @@ func initRedis() (*redis.Client, error) {
 
 	opt, err := redis.ParseURL(redisURL)
 	if err != nil {
-		// Redis 连接失败，返回 nil，应用将在需要时使用内存存储
-		log.Println("Warning: Failed to parse Redis URL, using memory storage instead")
-		return nil, nil
+		return nil, err
 	}
 
 	client := redis.NewClient(opt)
@@ -230,9 +275,7 @@ func initRedis() (*redis.Client, error) {
 	ctx := context.Background()
 	_, err = client.Ping(ctx).Result()
 	if err != nil {
-		// Redis 连接失败，返回 nil，应用将在需要时使用内存存储
-		log.Println("Warning: Failed to connect to Redis, using memory storage instead")
-		return nil, nil
+		return nil, err
 	}
 
 	return client, nil
@@ -262,9 +305,7 @@ func initMinIO() (*minio.Client, error) {
 		Secure: useSSL,
 	})
 	if err != nil {
-		// MinIO 连接失败，返回 nil，应用将在需要时使用本地存储
-		log.Println("Warning: Failed to connect to MinIO, using local storage instead")
-		return nil, nil
+		return nil, err
 	}
 
 	// 测试连接
@@ -274,9 +315,7 @@ func initMinIO() (*minio.Client, error) {
 		// 如果 bucket 不存在，创建它
 		err = client.MakeBucket(ctx, "laima", minio.MakeBucketOptions{})
 		if err != nil {
-			// 无法创建 bucket，返回 nil，应用将在需要时使用本地存储
-			log.Println("Warning: Failed to create MinIO bucket, using local storage instead")
-			return nil, nil
+			return nil, err
 		}
 	}
 
@@ -299,9 +338,7 @@ func initMeilisearch() (meilisearch.ServiceManager, error) {
 
 	client, err := meilisearch.Connect(meiliURL, options...)
 	if err != nil {
-		// Meilisearch 连接失败，返回 nil，应用将在需要时使用其他搜索方式
-		log.Println("Warning: Failed to connect to Meilisearch, search functionality will be limited")
-		return nil, nil
+		return nil, err
 	}
 
 	return client, nil

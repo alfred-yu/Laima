@@ -63,6 +63,38 @@ services:
       timeout: 5s
       retries: 5
 
+  backend:
+    build: .
+    container_name: laima-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - LAIMA_DB_HOST=postgres
+      - LAIMA_DB_PORT=5432
+      - LAIMA_DB_NAME=laima
+      - LAIMA_DB_USER=laima
+      - LAIMA_DB_PASSWORD=laima123
+      - LAIMA_REDIS_URL=redis://redis:6379
+      - LAIMA_MINIO_ENDPOINT=minio:9000
+      - LAIMA_MINIO_ACCESS_KEY=laima
+      - LAIMA_MINIO_SECRET_KEY=laima123
+      - LAIMA_MINIO_USE_SSL=false
+      - LAIMA_MEILISEARCH_URL=http://meilisearch:7700
+      - LAIMA_MEILISEARCH_API_KEY=laima_master_key
+      - LAIMA_REPO_PATH=/app/repos
+      - GIN_MODE=release
+    volumes:
+      - ./repos:/app/repos
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:

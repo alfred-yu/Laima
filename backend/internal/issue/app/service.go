@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"time"
+
 	"laima/internal/issue/domain"
 
 	"gorm.io/gorm"
@@ -34,6 +36,15 @@ type IssueService interface {
 	UpdateMilestone(ctx context.Context, milestoneID int, req *domain.MilestoneRequest) (*domain.Milestone, error)
 	DeleteMilestone(ctx context.Context, milestoneID int) error
 	ListMilestones(ctx context.Context, repoID int) ([]*domain.Milestone, error)
+
+	// 时间追踪
+	AddTimeTracking(ctx context.Context, req *domain.TimeTrackingRequest, userID int) (*domain.TimeTracking, error)
+	UpdateTimeTracking(ctx context.Context, trackingID int, req *domain.TimeTrackingRequest) (*domain.TimeTracking, error)
+	DeleteTimeTracking(ctx context.Context, trackingID int) error
+	GetTimeTracking(ctx context.Context, trackingID int) (*domain.TimeTracking, error)
+	ListTimeTracking(ctx context.Context, filter *domain.TimeTrackingFilter) ([]*domain.TimeTracking, int64, error)
+	GetIssueTimeSummary(ctx context.Context, issueID int) (float64, error)
+	GetRepositoryTimeSummary(ctx context.Context, repoID int, startDate, endDate string) (float64, error)
 }
 
 // issueService Issue服务实现
@@ -354,4 +365,143 @@ func (s *issueService) ListMilestones(ctx context.Context, repoID int) ([]*domai
 		return nil, result.Error
 	}
 	return milestones, nil
+}
+
+// AddTimeTracking 添加时间追踪
+func (s *issueService) AddTimeTracking(ctx context.Context, req *domain.TimeTrackingRequest, userID int) (*domain.TimeTracking, error) {
+	// 验证Issue存在
+	var issue domain.Issue
+	if err := s.db.First(&issue, req.IssueID).Error; err != nil {
+		return nil, err
+	}
+
+	// 解析日期
+	date, err := time.Parse("2006-01-02", req.Date)
+	if err != nil {
+		return nil, err
+	}
+
+	// 创建时间追踪记录
+	tracking := &domain.TimeTracking{
+		IssueID:     req.IssueID,
+		UserID:      userID,
+		Hours:       req.Hours,
+		Description: req.Description,
+		Date:        date,
+	}
+
+	if err := s.db.Create(tracking).Error; err != nil {
+		return nil, err
+	}
+
+	return tracking, nil
+}
+
+// UpdateTimeTracking 更新时间追踪
+func (s *issueService) UpdateTimeTracking(ctx context.Context, trackingID int, req *domain.TimeTrackingRequest) (*domain.TimeTracking, error) {
+	// 验证时间追踪记录存在
+	var tracking domain.TimeTracking
+	if err := s.db.First(&tracking, trackingID).Error; err != nil {
+		return nil, err
+	}
+
+	// 解析日期
+	date, err := time.Parse("2006-01-02", req.Date)
+	if err != nil {
+		return nil, err
+	}
+
+	// 更新时间追踪记录
+	tracking.IssueID = req.IssueID
+	tracking.Hours = req.Hours
+	tracking.Description = req.Description
+	tracking.Date = date
+
+	if err := s.db.Save(&tracking).Error; err != nil {
+		return nil, err
+	}
+
+	return &tracking, nil
+}
+
+// DeleteTimeTracking 删除时间追踪
+func (s *issueService) DeleteTimeTracking(ctx context.Context, trackingID int) error {
+	return s.db.Delete(&domain.TimeTracking{}, trackingID).Error
+}
+
+// GetTimeTracking 获取时间追踪详情
+func (s *issueService) GetTimeTracking(ctx context.Context, trackingID int) (*domain.TimeTracking, error) {
+	var tracking domain.TimeTracking
+	result := s.db.First(&tracking, trackingID)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &tracking, nil
+}
+
+// ListTimeTracking 列出时间追踪记录
+func (s *issueService) ListTimeTracking(ctx context.Context, filter *domain.TimeTrackingFilter) ([]*domain.TimeTracking, int64, error) {
+	var trackings []*domain.TimeTracking
+	var total int64
+
+	query := s.db.Model(&domain.TimeTracking{})
+
+	// 应用过滤条件
+	if filter.IssueID > 0 {
+		query = query.Where("issue_id = ?", filter.IssueID)
+	}
+	if filter.UserID > 0 {
+		query = query.Where("user_id = ?", filter.UserID)
+	}
+	if filter.RepositoryID > 0 {
+		// 通过Issue关联查询仓库ID
+		query = query.Joins("JOIN issues ON time_trackings.issue_id = issues.id").Where("issues.repository_id = ?", filter.RepositoryID)
+	}
+	if filter.StartDate != "" {
+		query = query.Where("date >= ?", filter.StartDate)
+	}
+	if filter.EndDate != "" {
+		query = query.Where("date <= ?", filter.EndDate)
+	}
+
+	// 计算总数
+	query.Count(&total)
+
+	// 分页
+	offset := (filter.Page - 1) * filter.PerPage
+	result := query.Offset(offset).Limit(filter.PerPage).Order("date DESC").Find(&trackings)
+	if result.Error != nil {
+		return nil, 0, result.Error
+	}
+
+	return trackings, total, nil
+}
+
+// GetIssueTimeSummary 获取Issue的时间汇总
+func (s *issueService) GetIssueTimeSummary(ctx context.Context, issueID int) (float64, error) {
+	var totalHours float64
+	result := s.db.Model(&domain.TimeTracking{}).Where("issue_id = ?", issueID).Select("COALESCE(SUM(hours), 0)").Scan(&totalHours)
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return totalHours, nil
+}
+
+// GetRepositoryTimeSummary 获取仓库的时间汇总
+func (s *issueService) GetRepositoryTimeSummary(ctx context.Context, repoID int, startDate, endDate string) (float64, error) {
+	var totalHours float64
+	query := s.db.Model(&domain.TimeTracking{}).Joins("JOIN issues ON time_trackings.issue_id = issues.id").Where("issues.repository_id = ?", repoID)
+
+	if startDate != "" {
+		query = query.Where("time_trackings.date >= ?", startDate)
+	}
+	if endDate != "" {
+		query = query.Where("time_trackings.date <= ?", endDate)
+	}
+
+	result := query.Select("COALESCE(SUM(time_trackings.hours), 0)").Scan(&totalHours)
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return totalHours, nil
 }

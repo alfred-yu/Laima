@@ -39,6 +39,37 @@ type Milestone struct {
 	UpdatedAt    time.Time `json:"updated_at" gorm:"not null;default:now()"`
 }
 
+// TimeTracking 时间追踪模型
+type TimeTracking struct {
+	ID           int       `json:"id" gorm:"primaryKey"`
+	IssueID      int       `json:"issue_id" gorm:"not null;index"`
+	UserID       int       `json:"user_id" gorm:"not null;index"`
+	Hours        float64   `json:"hours" gorm:"not null"`
+	Description  string    `json:"description" gorm:"type:text"`
+	Date         time.Time `json:"date" gorm:"not null;index"`
+	CreatedAt    time.Time `json:"created_at" gorm:"not null;default:now()"`
+	UpdatedAt    time.Time `json:"updated_at" gorm:"not null;default:now()"`
+}
+
+// TimeTrackingRequest 时间追踪请求
+type TimeTrackingRequest struct {
+	IssueID     int     `json:"issue_id" binding:"required"`
+	Hours       float64 `json:"hours" binding:"required,gt=0"`
+	Description string  `json:"description"`
+	Date        string  `json:"date" binding:"required"`
+}
+
+// TimeTrackingFilter 时间追踪过滤条件
+type TimeTrackingFilter struct {
+	IssueID    int    `json:"issue_id"`
+	UserID     int    `json:"user_id"`
+	RepositoryID int   `json:"repository_id"`
+	StartDate  string `json:"start_date"`
+	EndDate    string `json:"end_date"`
+	Page       int    `json:"page" binding:"min=1"`
+	PerPage    int    `json:"per_page" binding:"min=1,max=100"`
+}
+
 // IssueComment Issue评论模型
 type IssueComment struct {
 	ID           int       `json:"id" gorm:"primaryKey"`

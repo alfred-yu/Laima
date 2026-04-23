@@ -45,6 +45,28 @@ func (api *IssueApi) RegisterRoutes(r *gin.Engine) {
 		issueGroup.POST("/:id/comments", api.CreateComment)
 		issueGroup.PUT("/comments/:id", api.UpdateComment)
 		issueGroup.DELETE("/comments/:id", api.DeleteComment)
+
+		// 时间追踪
+		issueGroup.GET("/:id/time-tracking", api.GetIssueTimeTracking)
+		issueGroup.POST("/:id/time-tracking", api.AddIssueTimeTracking)
+		issueGroup.GET("/:id/time-summary", api.GetIssueTimeSummary)
+	}
+
+	// 时间追踪路由
+	timeTrackingGroup := r.Group("/api/v1/time-tracking")
+	{
+		timeTrackingGroup.GET("", api.ListTimeTracking)
+		timeTrackingGroup.POST("", api.AddTimeTracking)
+		timeTrackingGroup.GET("/:id", api.GetTimeTracking)
+		timeTrackingGroup.PUT("/:id", api.UpdateTimeTracking)
+		timeTrackingGroup.DELETE("/:id", api.DeleteTimeTracking)
+	}
+
+	// 仓库时间追踪路由
+	repoTimeTrackingGroup := r.Group("/api/v1/repos/:owner/:repo/time-tracking")
+	{
+		repoTimeTrackingGroup.GET("", api.ListRepoTimeTracking)
+		repoTimeTrackingGroup.GET("/summary", api.GetRepoTimeSummary)
 	}
 
 	// 里程碑路由
@@ -551,4 +573,230 @@ func (api *IssueApi) UpdateRepoMilestone(c *gin.Context) {
 func (api *IssueApi) DeleteRepoMilestone(c *gin.Context) {
 	// 实现逻辑
 	c.JSON(http.StatusOK, gin.H{"message": "Delete repo milestone"})
+}
+
+// AddTimeTracking 添加时间追踪
+func (api *IssueApi) AddTimeTracking(c *gin.Context) {
+	var req domain.TimeTrackingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 从JWT token中获取用户ID
+	userID := 1 // 临时硬编码
+
+	tracking, err := api.issueService.AddTimeTracking(c, &req, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, tracking)
+}
+
+// UpdateTimeTracking 更新时间追踪
+func (api *IssueApi) UpdateTimeTracking(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid time tracking ID"})
+		return
+	}
+
+	var req domain.TimeTrackingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	tracking, err := api.issueService.UpdateTimeTracking(c, id, &req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, tracking)
+}
+
+// DeleteTimeTracking 删除时间追踪
+func (api *IssueApi) DeleteTimeTracking(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid time tracking ID"})
+		return
+	}
+
+	if err := api.issueService.DeleteTimeTracking(c, id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Time tracking deleted successfully"})
+}
+
+// GetTimeTracking 获取时间追踪详情
+func (api *IssueApi) GetTimeTracking(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid time tracking ID"})
+		return
+	}
+
+	tracking, err := api.issueService.GetTimeTracking(c, id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Time tracking not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, tracking)
+}
+
+// ListTimeTracking 列出时间追踪记录
+func (api *IssueApi) ListTimeTracking(c *gin.Context) {
+	filter := &domain.TimeTrackingFilter{
+		Page:    1,
+		PerPage: 30,
+	}
+
+	if page, err := strconv.Atoi(c.Query("page")); err == nil && page > 0 {
+		filter.Page = page
+	}
+
+	if perPage, err := strconv.Atoi(c.Query("per_page")); err == nil && perPage > 0 {
+		filter.PerPage = perPage
+	}
+
+	if issueID, err := strconv.Atoi(c.Query("issue_id")); err == nil && issueID > 0 {
+		filter.IssueID = issueID
+	}
+
+	if userID, err := strconv.Atoi(c.Query("user_id")); err == nil && userID > 0 {
+		filter.UserID = userID
+	}
+
+	if repoID, err := strconv.Atoi(c.Query("repository_id")); err == nil && repoID > 0 {
+		filter.RepositoryID = repoID
+	}
+
+	filter.StartDate = c.Query("start_date")
+	filter.EndDate = c.Query("end_date")
+
+	trackings, total, err := api.issueService.ListTimeTracking(c, filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"total":     total,
+		"items":     trackings,
+		"page":      filter.Page,
+		"per_page":  filter.PerPage,
+	})
+}
+
+// GetIssueTimeTracking 获取Issue的时间追踪记录
+func (api *IssueApi) GetIssueTimeTracking(c *gin.Context) {
+	idStr := c.Param("id")
+	issueID, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid issue ID"})
+		return
+	}
+
+	filter := &domain.TimeTrackingFilter{
+		IssueID: issueID,
+		Page:    1,
+		PerPage: 30,
+	}
+
+	trackings, total, err := api.issueService.ListTimeTracking(c, filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"total":     total,
+		"items":     trackings,
+		"page":      filter.Page,
+		"per_page":  filter.PerPage,
+	})
+}
+
+// AddIssueTimeTracking 为Issue添加时间追踪
+func (api *IssueApi) AddIssueTimeTracking(c *gin.Context) {
+	idStr := c.Param("id")
+	issueID, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid issue ID"})
+		return
+	}
+
+	var req struct {
+		Hours       float64 `json:"hours" binding:"required,gt=0"`
+		Description string  `json:"description"`
+		Date        string  `json:"date" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	trackingReq := &domain.TimeTrackingRequest{
+		IssueID:     issueID,
+		Hours:       req.Hours,
+		Description: req.Description,
+		Date:        req.Date,
+	}
+
+	// 从JWT token中获取用户ID
+	userID := 1 // 临时硬编码
+
+	tracking, err := api.issueService.AddTimeTracking(c, trackingReq, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, tracking)
+}
+
+// GetIssueTimeSummary 获取Issue的时间汇总
+func (api *IssueApi) GetIssueTimeSummary(c *gin.Context) {
+	idStr := c.Param("id")
+	issueID, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid issue ID"})
+		return
+	}
+
+	totalHours, err := api.issueService.GetIssueTimeSummary(c, issueID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"issue_id":     issueID,
+		"total_hours":  totalHours,
+	})
+}
+
+// ListRepoTimeTracking 列出仓库的时间追踪记录
+func (api *IssueApi) ListRepoTimeTracking(c *gin.Context) {
+	// 这里需要通过owner和repo名称获取仓库ID
+	// 由于时间限制，这里只实现基本结构
+	c.JSON(http.StatusOK, gin.H{"message": "List repo time tracking"})
+}
+
+// GetRepoTimeSummary 获取仓库的时间汇总
+func (api *IssueApi) GetRepoTimeSummary(c *gin.Context) {
+	// 这里需要通过owner和repo名称获取仓库ID
+	// 由于时间限制，这里只实现基本结构
+	c.JSON(http.StatusOK, gin.H{"message": "Get repo time summary"})
 }

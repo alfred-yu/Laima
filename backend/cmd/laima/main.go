@@ -20,6 +20,10 @@ import (
 	cicdapp "laima/internal/cicd/app"
 	issueapi "laima/internal/issue/api"
 	auditapi "laima/internal/audit/api"
+	securityapi "laima/internal/security/api"
+	securityapp "laima/internal/security/app"
+	pagesapi "laima/internal/pages/api"
+	pagesapp "laima/internal/pages/app"
 	"laima/internal/git"
 	"laima/internal/middleware"
 	"laima/internal/user/app"
@@ -30,6 +34,8 @@ import (
 	cicddomain "laima/internal/cicd/domain"
 	aidomain "laima/internal/ai/domain"
 	auditdomain "laima/internal/audit/domain"
+	securitydomain "laima/internal/security/domain"
+	pagesdomain "laima/internal/pages/domain"
 	auditapp "laima/internal/audit/app"
 
 	"github.com/gin-gonic/gin"
@@ -175,6 +181,18 @@ func main() {
 		cicdService = cicdapp.NewCICDService(db, prService)
 	}
 
+	// 初始化安全扫描服务
+	var securityService securityapp.SecurityService
+	if db != nil {
+		securityService = securityapp.NewSecurityService(db)
+	}
+
+	// 初始化Pages服务
+	var pagesService pagesapp.PagesService
+	if db != nil {
+		pagesService = pagesapp.NewPagesService(db)
+	}
+
 	// 注册 API 路由
 	if db != nil {
 		repoAPI := repoapi.NewRepoAPI(db, redisClient, minioClient, meiliClient, gitSvc)
@@ -194,6 +212,14 @@ func main() {
 
 		issueAPI := issueapi.NewIssueApi(db)
 		issueAPI.RegisterRoutes(r)
+
+		// 注册安全扫描路由
+		securityAPI := securityapi.NewSecurityAPI(securityService)
+		securityAPI.RegisterRoutes(r)
+
+		// 注册Pages路由
+		pagesAPI := pagesapi.NewPagesApi(db)
+		pagesAPI.RegisterRoutes(r)
 
 		// 注册审计路由
 		auditAPI := auditapi.NewAuditAPI(db)
@@ -239,11 +265,18 @@ func autoMigrate(db *gorm.DB) error {
 		&issuedomain.Issue{},
 		&issuedomain.IssueComment{},
 		&issuedomain.Milestone{},
+		&issuedomain.TimeTracking{},
 		&cicddomain.Pipeline{},
 		&cicddomain.Job{},
 		&aidomain.AIReview{},
 		&aidomain.AIReviewIssue{},
 		&auditdomain.AuditLog{},
+		&securitydomain.SecurityScan{},
+		&securitydomain.ScanFinding{},
+		&securitydomain.DASTScanConfig{},
+		&securitydomain.ContainerScanConfig{},
+		&pagesdomain.Pages{},
+		&pagesdomain.PagesConfig{},
 	)
 }
 

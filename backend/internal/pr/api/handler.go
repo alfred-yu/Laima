@@ -204,7 +204,14 @@ func (api *PRAPI) MergePR(c *gin.Context) {
 	// 从JWT token中获取用户ID
 	userID := 1 // 临时硬编码
 
-	pr, err := api.prService.MergePR(c, id, userID)
+	// 默认使用merge策略
+	mergeStrategy := "merge"
+	// 可以从请求中获取策略，这里先简化
+	if strategy := c.Query("strategy"); strategy != "" {
+		mergeStrategy = strategy
+	}
+
+	pr, err := api.prService.MergePR(c, id, userID, mergeStrategy)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

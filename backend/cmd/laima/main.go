@@ -1,3 +1,4 @@
+
 package main
 
 import (
@@ -13,13 +14,17 @@ import (
 	aiapi "laima/internal/ai/api"
 	cicdapi "laima/internal/cicd/api"
 	issueapi "laima/internal/issue/api"
+	auditapi "laima/internal/audit/api"
 	"laima/internal/git"
+	"laima/internal/middleware"
 	"laima/internal/user/domain"
 	repodomain "laima/internal/repo/domain"
 	prdomain "laima/internal/pr/domain"
 	issuedomain "laima/internal/issue/domain"
 	cicddomain "laima/internal/cicd/domain"
 	aidomain "laima/internal/ai/domain"
+	auditdomain "laima/internal/audit/domain"
+	auditapp "laima/internal/audit/app"
 
 	"github.com/gin-gonic/gin"
 	"github.com/minio/minio-go/v7"
@@ -65,6 +70,10 @@ func main() {
 	// 初始化 Git 服务
 	gitSvc := initGitService()
 
+	// 初始化审计服务
+	auditSvc := auditapp.NewAuditService(db)
+	auditMiddleware := middleware.NewAuditMiddleware(auditSvc)
+
 	// 设置 Gin 模式
 	if os.Getenv("GIN_MODE") == "release" {
 		gin.SetMode(gin.ReleaseMode)
@@ -88,6 +97,9 @@ func main() {
 		c.Next()
 	})
 
+	// 注册审计中间件（在认证之后，路由之前）
+	r.Use(auditMiddleware.Handler())
+
 	// 注册 API 路由
 	repoAPI := repoapi.NewRepoAPI(db, redisClient, minioClient, meiliClient, gitSvc)
 	repoAPI.RegisterRoutes(r)
@@ -106,6 +118,10 @@ func main() {
 
 	issueAPI := issueapi.NewIssueApi(db)
 	issueAPI.RegisterRoutes(r)
+
+	// 注册审计路由
+	auditAPI := auditapi.NewAuditAPI(db)
+	auditAPI.RegisterRoutes(r)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -145,6 +161,7 @@ func autoMigrate(db *gorm.DB) error {
 		&cicddomain.Job{},
 		&aidomain.AIReview{},
 		&aidomain.AIReviewIssue{},
+		&auditdomain.AuditLog{},
 	)
 }
 

@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"laima/internal/git"
-	repodomain "laima/internal/repo/domain"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,8 +24,8 @@ func NewLFSHandler(gitSvc *git.Service) *LFSHandler {
 func (h *LFSHandler) RegisterRoutes(router *gin.RouterGroup) {
 	lfs := router.Group("/lfs")
 	{
-		lfs.Post("/objects", h.UploadObject)
-		lfs.Get("/objects/:oid", h.DownloadObject)
+		lfs.POST("/objects", h.UploadObject)
+		lfs.GET("/objects/:oid", h.DownloadObject)
 	}
 }
 
@@ -43,22 +42,31 @@ type LFSBatchRequest struct {
 	} `json:"ref,omitempty"`
 }
 
+// LFSObjectAction LFS 对象动作
+type LFSObjectAction struct {
+	Href      string            `json:"href"`
+	Header    map[string]string `json:"header,omitempty"`
+	ExpiresIn int              `json:"expires_in,omitempty"`
+}
+
+// LFSObjectError LFS 对象错误
+type LFSObjectError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+// LFSResponseObject LFS 响应对象
+type LFSResponseObject struct {
+	Oid     string                     `json:"oid"`
+	Size    int64                      `json:"size"`
+	Actions map[string]LFSObjectAction `json:"actions,omitempty"`
+	Error   *LFSObjectError            `json:"error,omitempty"`
+}
+
 // LFSBatchResponse LFS 批量响应
 type LFSBatchResponse struct {
-	Transfer string `json:"transfer"`
-	Objects  []struct {
-		Oid  string `json:"oid"`
-		Size int64  `json:"size"`
-		Actions map[string]struct {
-			Href      string            `json:"href"`
-			Header    map[string]string `json:"header,omitempty"`
-			ExpiresIn int              `json:"expires_in,omitempty"`
-		} `json:"actions,omitempty"`
-		Error *struct {
-			Code    int    `json:"code"`
-			Message string `json:"message"`
-		} `json:"error,omitempty"`
-	} `json:"objects"`
+	Transfer string               `json:"transfer"`
+	Objects  []LFSResponseObject `json:"objects"`
 }
 
 // Batch 处理 LFS 批量请求
@@ -71,45 +79,21 @@ func (h *LFSHandler) Batch(c *gin.Context) {
 
 	resp := LFSBatchResponse{
 		Transfer: "basic",
-		Objects:  make([]struct {
-			Oid  string `json:"oid"`
-			Size int64  `json:"size"`
-			Actions map[string]struct {
-				Href      string            `json:"href"`
-				Header    map[string]string `json:"header,omitempty"`
-				ExpiresIn int              `json:"expires_in,omitempty"`
-			} `json:"actions,omitempty"`
-			Error *struct {
-				Code    int    `json:"code"`
-				Message string `json:"message"`
-			} `json:"error,omitempty"`
-		}, len(req.Objects)},
+		Objects:  make([]LFSResponseObject, len(req.Objects)),
 	}
 
 	for i, obj := range req.Objects {
 		resp.Objects[i].Oid = obj.Oid
 		resp.Objects[i].Size = obj.Size
-		resp.Objects[i].Actions = make(map[string]struct {
-			Href      string            `json:"href"`
-			Header    map[string]string `json:"header,omitempty"`
-			ExpiresIn int              `json:"expires_in,omitempty"`
-		})
+		resp.Objects[i].Actions = make(map[string]LFSObjectAction)
 
 		if req.Operation == "download" {
-			resp.Objects[i].Actions["download"] = struct {
-				Href      string            `json:"href"`
-				Header    map[string]string `json:"header,omitempty"`
-				ExpiresIn int              `json:"expires_in,omitempty"`
-			}{
+			resp.Objects[i].Actions["download"] = LFSObjectAction{
 				Href:      "/api/v1/repos/lfs/objects/" + obj.Oid,
 				ExpiresIn: 3600,
 			}
 		} else if req.Operation == "upload" {
-			resp.Objects[i].Actions["upload"] = struct {
-				Href      string            `json:"href"`
-				Header    map[string]string `json:"header,omitempty"`
-				ExpiresIn int              `json:"expires_in,omitempty"`
-			}{
+			resp.Objects[i].Actions["upload"] = LFSObjectAction{
 				Href:      "/api/v1/repos/lfs/objects",
 				ExpiresIn: 3600,
 			}

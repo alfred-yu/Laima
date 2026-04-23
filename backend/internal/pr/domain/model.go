@@ -21,6 +21,7 @@ type PullRequest struct {
 	HeadCommitSHA string    `json:"head_commit_sha" gorm:"not null"`
 	BaseCommitSHA string    `json:"base_commit_sha" gorm:"not null"`
 	MergeCommitSHA string   `json:"merge_commit_sha"`
+	MergeStrategy string   `json:"merge_strategy"`
 	MergedBy      int       `json:"merged_by" gorm:"index"`
 	MergedAt      time.Time `json:"merged_at"`
 	ClosedAt      time.Time `json:"closed_at"`

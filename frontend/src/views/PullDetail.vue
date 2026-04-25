@@ -1,79 +1,108 @@
 <template>
   <div class="pull-detail">
-    <h1>{{ pull.title }}</h1>
-    <div class="pull-meta">
-      <span class="pull-author">由 {{ pull.author }} 创建</span>
-      <span class="pull-time">{{ pull.time }}</span>
-      <span class="pull-branch">{{ pull.source }} → {{ pull.target }}</span>
-      <span class="pull-status" :class="pull.status">{{ pull.status }}</span>
+    <div v-if="loading" class="loading-state">
+      <Skeleton type="text" :count="8" />
     </div>
-    <div class="pull-content">
-      <div class="pull-description">
-        <p>{{ pull.description }}</p>
-      </div>
-      <div class="pull-diff">
-        <h2>代码变更</h2>
-        <div class="diff-file">
-          <div class="diff-header">
-            <span class="file-name">package.json</span>
-            <span class="file-status">修改</span>
-          </div>
-          <div class="diff-content">
-            <pre>{{ pull.diff }}</pre>
-          </div>
-        </div>
-      </div>
-      <div class="pull-comments">
-        <h2>评论</h2>
-        <div class="comment-list">
-          <div v-for="comment in pull.comments" :key="comment.id" class="comment-item">
-            <div class="comment-author">{{ comment.author }}</div>
-            <div class="comment-content">{{ comment.content }}</div>
-            <div class="comment-time">{{ comment.time }}</div>
-          </div>
-        </div>
-        <div class="comment-form">
-          <textarea placeholder="添加评论..."></textarea>
-          <button class="btn primary">提交</button>
-        </div>
-      </div>
+    <div v-else-if="error" class="error-state">
+      {{ error }}
     </div>
+    <template v-else>
+      <h1>{{ pull.title }}</h1>
+      <div class="pull-meta">
+        <span class="pull-author">由 {{ pull.author }} 创建</span>
+        <span class="pull-time">{{ pull.time }}</span>
+        <span class="pull-branch">{{ pull.source }} → {{ pull.target }}</span>
+        <span class="pull-status" :class="pull.status">{{ pull.status }}</span>
+      </div>
+      <div class="pull-content">
+        <div class="pull-description">
+          <p>{{ pull.description }}</p>
+        </div>
+        <div class="pull-diff">
+          <h2>代码变更</h2>
+          <div class="diff-file">
+            <div class="diff-header">
+              <span class="file-name">package.json</span>
+              <span class="file-status">修改</span>
+            </div>
+            <div class="diff-content">
+              <pre>{{ pull.diff }}</pre>
+            </div>
+          </div>
+        </div>
+        <div class="pull-comments">
+          <h2>评论</h2>
+          <div class="comment-list">
+            <div v-for="comment in pull.comments" :key="comment.id" class="comment-item">
+              <div class="comment-author">{{ comment.author }}</div>
+              <div class="comment-content">{{ comment.content }}</div>
+              <div class="comment-time">{{ comment.time }}</div>
+            </div>
+          </div>
+          <div class="comment-form">
+            <textarea placeholder="添加评论..."></textarea>
+            <button class="btn primary">提交</button>
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { useRoute } from 'vue-router'
+import { Skeleton } from '../components'
+import { prApi } from '../services/api'
 
-const pull = ref({
-  id: 1,
-  title: 'Add new feature',
-  author: 'user1',
-  time: '2小时前',
-  source: 'feature-1',
-  target: 'main',
+const route = useRoute()
+const pullId = computed(() => Number(route.params.id))
+
+const pull = ref<any>({
+  title: '',
+  author: '',
+  time: '',
+  source: '',
+  target: '',
   status: 'open',
-  description: 'This PR adds a new feature to the project.',
-  diff: `{\n  "name": "laima-frontend",\n  "private": true,\n  "version": "0.0.0",\n  "type": "module",\n  "scripts": {\n    "dev": "vite",\n    "build": "vue-tsc && vite build",\n    "preview": "vite preview"\n  },\n  "dependencies": {\n    "vue": "^3.5.13",\n    "vue-router": "^4.4.5",\n    "pinia": "^2.3.0",\n    "axios": "^1.7.9",\n+   "monaco-editor": "^0.52.2"\n  },\n  "devDependencies": {\n    "@vitejs/plugin-vue": "^5.2.1",\n    "typescript": "~5.6.2",\n    "vite": "^6.0.5",\n    "vue-tsc": "^2.1.10"\n  }\n}`,
-  comments: [
-    {
-      id: 1,
-      author: 'user2',
-      content: 'Looks good!',
-      time: '1小时前'
-    },
-    {
-      id: 2,
-      author: 'user3',
-      content: 'Please add tests for this feature.',
-      time: '30分钟前'
-    }
-  ]
+  description: '',
+  diff: '',
+  comments: []
+})
+const loading = ref(true)
+const error = ref('')
+
+const loadPull = async () => {
+  try {
+    loading.value = true
+    error.value = ''
+    const response = await prApi.getPR(pullId.value)
+    pull.value = response as any
+  } catch (err: any) {
+    error.value = err.message || '加载 PR 详情失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  loadPull()
 })
 </script>
 
 <style scoped>
 .pull-detail {
   padding: 20px;
+}
+
+.loading-state,
+.error-state {
+  padding: 20px 0;
+  color: var(--text-secondary);
+}
+
+.error-state {
+  color: var(--danger-color);
 }
 
 .pull-meta {

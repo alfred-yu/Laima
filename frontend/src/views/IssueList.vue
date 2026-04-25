@@ -4,14 +4,20 @@
     <div class="issues-actions">
       <button class="btn primary">新建 Issue</button>
       <div class="filter-options">
-        <select v-model="filter">
+        <select v-model="filter" @change="loadIssues">
           <option value="all">所有 Issue</option>
           <option value="open">打开</option>
           <option value="closed">已关闭</option>
         </select>
       </div>
     </div>
-    <div class="issues-list">
+    <div v-if="loading" class="loading-state">
+      <Skeleton type="list" :count="5" />
+    </div>
+    <div v-else-if="error" class="error-state">
+      {{ error }}
+    </div>
+    <div v-else class="issues-list">
       <div v-for="issue in issues" :key="issue.id" class="issue-item">
         <div class="issue-info">
           <h3 class="issue-title">{{ issue.title }}</h3>
@@ -31,38 +37,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { Skeleton } from '../components'
+import { issueApi } from '../services/api'
 
 const filter = ref('all')
-const issues = ref([
-  {
-    id: 1,
-    title: 'Bug in login',
-    repo: 'user1/laima',
-    author: 'user1',
-    time: '2小时前',
-    labels: ['bug', 'high'],
-    status: 'open'
-  },
-  {
-    id: 2,
-    title: 'Feature request',
-    repo: 'user2/frontend',
-    author: 'user2',
-    time: '1天前',
-    labels: ['feature', 'medium'],
-    status: 'open'
-  },
-  {
-    id: 3,
-    title: 'Performance issue',
-    repo: 'user3/backend',
-    author: 'user3',
-    time: '3天前',
-    labels: ['performance', 'low'],
-    status: 'closed'
+const issues = ref<any[]>([])
+const loading = ref(true)
+const error = ref('')
+
+const loadIssues = async () => {
+  try {
+    loading.value = true
+    error.value = ''
+    const params = filter.value !== 'all' ? { state: filter.value } : undefined
+    const response = await issueApi.listIssues(params)
+    issues.value = (response as any).items || []
+  } catch (err: any) {
+    error.value = err.message || '加载 Issue 失败'
+  } finally {
+    loading.value = false
   }
-])
+}
+
+onMounted(() => {
+  loadIssues()
+})
 </script>
 
 <style scoped>
@@ -105,6 +105,16 @@ const issues = ref([
   background: var(--bg-primary);
   color: var(--text-primary);
   transition: border-color 0.3s, background-color 0.3s, color 0.3s;
+}
+
+.loading-state,
+.error-state {
+  padding: 20px 0;
+  color: var(--text-secondary);
+}
+
+.error-state {
+  color: var(--danger-color);
 }
 
 .issues-list {

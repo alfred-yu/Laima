@@ -4,7 +4,7 @@
     <div class="cicd-actions">
       <button class="btn primary">运行流水线</button>
       <div class="filter-options">
-        <select v-model="filter">
+        <select v-model="filter" @change="loadPipelines">
           <option value="all">所有流水线</option>
           <option value="running">运行中</option>
           <option value="success">成功</option>
@@ -12,7 +12,13 @@
         </select>
       </div>
     </div>
-    <div class="pipelines-list">
+    <div v-if="loading" class="loading-state">
+      <Skeleton type="list" :count="5" />
+    </div>
+    <div v-else-if="error" class="error-state">
+      {{ error }}
+    </div>
+    <div v-else class="pipelines-list">
       <div v-for="pipeline in pipelines" :key="pipeline.id" class="pipeline-item">
         <div class="pipeline-info">
           <h3 class="pipeline-name">流水线 #{{ pipeline.id }}</h3>
@@ -32,35 +38,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { Skeleton } from '../components'
+import { cicdApi } from '../services/api'
 
 const filter = ref('all')
-const pipelines = ref([
-  {
-    id: 1,
-    repo: 'user1/laima',
-    author: 'user1',
-    time: '2小时前',
-    branch: 'main',
-    status: 'running'
-  },
-  {
-    id: 2,
-    repo: 'user2/frontend',
-    author: 'user2',
-    time: '1天前',
-    branch: 'feature-1',
-    status: 'success'
-  },
-  {
-    id: 3,
-    repo: 'user3/backend',
-    author: 'user3',
-    time: '3天前',
-    branch: 'dev',
-    status: 'failed'
+const pipelines = ref<any[]>([])
+const loading = ref(true)
+const error = ref('')
+
+const loadPipelines = async () => {
+  try {
+    loading.value = true
+    error.value = ''
+    const params = filter.value !== 'all' ? { status: filter.value } : undefined
+    const response = await cicdApi.listPipelines(params)
+    pipelines.value = (response as any).items || []
+  } catch (err: any) {
+    error.value = err.message || '加载流水线失败'
+  } finally {
+    loading.value = false
   }
-])
+}
+
+onMounted(() => {
+  loadPipelines()
+})
 </script>
 
 <style scoped>
@@ -103,6 +106,16 @@ const pipelines = ref([
   background: var(--bg-primary);
   color: var(--text-primary);
   transition: border-color 0.3s, background-color 0.3s, color 0.3s;
+}
+
+.loading-state,
+.error-state {
+  padding: 20px 0;
+  color: var(--text-secondary);
+}
+
+.error-state {
+  color: var(--danger-color);
 }
 
 .pipelines-list {

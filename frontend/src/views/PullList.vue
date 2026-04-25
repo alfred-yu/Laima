@@ -4,7 +4,7 @@
     <div class="pulls-actions">
       <button class="btn primary">新建 PR</button>
       <div class="filter-options">
-        <select v-model="filter">
+        <select v-model="filter" @change="loadPulls">
           <option value="all">所有 PR</option>
           <option value="open">打开</option>
           <option value="merged">已合并</option>
@@ -12,7 +12,13 @@
         </select>
       </div>
     </div>
-    <div class="pulls-list">
+    <div v-if="loading" class="loading-state">
+      <Skeleton type="list" :count="5" />
+    </div>
+    <div v-else-if="error" class="error-state">
+      {{ error }}
+    </div>
+    <div v-else class="pulls-list">
       <div v-for="pr in pulls" :key="pr.id" class="pull-item">
         <div class="pull-info">
           <h3 class="pull-title">{{ pr.title }}</h3>
@@ -32,41 +38,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import { Skeleton } from '../components'
+import { prApi } from '../services/api'
 
 const filter = ref('all')
-const pulls = ref([
-  {
-    id: 1,
-    title: 'Add new feature',
-    repo: 'user1/laima',
-    author: 'user1',
-    time: '2小时前',
-    source: 'feature-1',
-    target: 'main',
-    status: 'open'
-  },
-  {
-    id: 2,
-    title: 'Fix bug',
-    repo: 'user2/frontend',
-    author: 'user2',
-    time: '1天前',
-    source: 'bugfix-1',
-    target: 'main',
-    status: 'merged'
-  },
-  {
-    id: 3,
-    title: 'Update documentation',
-    repo: 'user3/backend',
-    author: 'user3',
-    time: '3天前',
-    source: 'docs-update',
-    target: 'main',
-    status: 'closed'
+const pulls = ref<any[]>([])
+const loading = ref(true)
+const error = ref('')
+
+const loadPulls = async () => {
+  try {
+    loading.value = true
+    error.value = ''
+    const params = filter.value !== 'all' ? { state: filter.value } : undefined
+    const response = await prApi.listPRs(params)
+    pulls.value = (response as any).items || []
+  } catch (err: any) {
+    error.value = err.message || '加载 PR 失败'
+  } finally {
+    loading.value = false
   }
-])
+}
+
+onMounted(() => {
+  loadPulls()
+})
 </script>
 
 <style scoped>
@@ -109,6 +106,16 @@ const pulls = ref([
   background: var(--bg-primary);
   color: var(--text-primary);
   transition: border-color 0.3s, background-color 0.3s, color 0.3s;
+}
+
+.loading-state,
+.error-state {
+  padding: 20px 0;
+  color: var(--text-secondary);
+}
+
+.error-state {
+  color: var(--danger-color);
 }
 
 .pulls-list {

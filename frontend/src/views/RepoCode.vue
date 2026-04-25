@@ -2,7 +2,8 @@
   <div class="repo-code">
     <div class="code-header">
       <div class="branch-selector">
-        <select v-model="selectedBranch">
+        <Skeleton v-if="branchesLoading" type="text" width="100px" />
+        <select v-else v-model="selectedBranch" @change="loadFiles">
           <option v-for="branch in branches" :key="branch" :value="branch">{{ branch }}</option>
         </select>
       </div>
@@ -17,74 +18,137 @@
         <div class="file-tree-header">
           <h3>文件</h3>
         </div>
-        <ul class="file-list">
-          <li v-for="file in files" :key="file.path" class="file-item">
-            <span class="file-icon">{{ file.type === 'dir' ? '📁' : '📄' }}</span>
+        <div v-if="filesLoading" class="loading-state">
+          <Skeleton type="list" :count="8" />
+        </div>
+        <div v-else-if="filesError" class="error-state">
+          {{ filesError }}
+        </div>
+        <ul v-else class="file-list">
+          <li 
+            v-for="file in files" 
+            :key="file.path" 
+            class="file-item"
+            :class="{ active: currentFile.path === file.path }"
+            @click="selectFile(file)"
+          >
+            <span class="file-icon">{{ file.type === 'dir' ? '📁' : getFileIcon(file.name) }}</span>
             <span class="file-name">{{ file.name }}</span>
           </li>
         </ul>
       </div>
       <div class="file-content">
-        <div class="file-header">
-          <h2>{{ currentFile.name }}</h2>
-          <div class="file-actions">
-            <button class="btn">编辑</button>
-            <button class="btn">删除</button>
-            <button class="btn">历史</button>
+        <div v-if="fileContentLoading" class="loading-state">
+          <Skeleton type="text" :count="20" />
+        </div>
+        <div v-else-if="fileContentError" class="error-state">
+          {{ fileContentError }}
+        </div>
+        <template v-else>
+          <div class="file-header">
+            <h2>{{ currentFile.name }}</h2>
+            <div class="file-actions">
+              <button class="btn">编辑</button>
+              <button class="btn">删除</button>
+              <button class="btn">历史</button>
+            </div>
           </div>
-        </div>
-        <div class="code-editor">
-          <pre>{{ currentFile.content }}</pre>
-        </div>
+          <div class="code-editor">
+            <pre>{{ currentFile.content }}</pre>
+          </div>
+        </template>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { useRoute } from 'vue-router'
+import { Skeleton } from '../components'
+import { repoApi } from '../services/api'
+
+const route = useRoute()
+const owner = computed(() => route.params.owner as string)
+const repo = computed(() => route.params.repo as string)
 
 const selectedBranch = ref('main')
-const branches = ref(['main', 'dev', 'feature-1', 'feature-2'])
+const branches = ref<string[]>([])
+const files = ref<any[]>([])
+const currentFile = ref<any>({ name: '', path: '', content: '', type: 'file' })
 
-const files = ref([
-  { path: 'src/', name: 'src', type: 'dir' },
-  { path: 'src/main.ts', name: 'main.ts', type: 'file' },
-  { path: 'src/App.vue', name: 'App.vue', type: 'file' },
-  { path: 'src/components/', name: 'components', type: 'dir' },
-  { path: 'src/views/', name: 'views', type: 'dir' },
-  { path: 'src/stores/', name: 'stores', type: 'dir' },
-  { path: 'src/router/', name: 'router', type: 'dir' },
-  { path: 'package.json', name: 'package.json', type: 'file' },
-  { path: 'tsconfig.json', name: 'tsconfig.json', type: 'file' },
-  { path: 'vite.config.ts', name: 'vite.config.ts', type: 'file' }
-])
+const branchesLoading = ref(true)
+const filesLoading = ref(true)
+const fileContentLoading = ref(false)
+const branchesError = ref('')
+const filesError = ref('')
+const fileContentError = ref('')
 
-const currentFile = ref({
-  name: 'package.json',
-  content: `{
-  "name": "laima-frontend",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc && vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "vue": "^3.5.13",
-    "vue-router": "^4.4.5",
-    "pinia": "^2.3.0",
-    "axios": "^1.7.9"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-vue": "^5.2.1",
-    "typescript": "~5.6.2",
-    "vite": "^6.0.5",
-    "vue-tsc": "^2.1.10"
+const loadBranches = async () => {
+  try {
+    branchesLoading.value = true
+    branchesError.value = ''
+    const response = await repoApi.listBranches(owner.value, repo.value)
+    const branchList = (response as any).items || []
+    branches.value = branchList.length > 0 ? branchList : ['main']
+    selectedBranch.value = branches.value[0]
+  } catch (err: any) {
+    branchesError.value = err.message || '加载分支失败'
+    branches.value = ['main']
+  } finally {
+    branchesLoading.value = false
   }
-}`
+}
+
+const loadFiles = async () => {
+  try {
+    filesLoading.value = true
+    filesError.value = ''
+    // TODO: 当 API 支持文件列表接口后替换
+    // const response = await repoApi.listFiles(owner.value, repo.value, selectedBranch.value)
+    // files.value = response.items || []
+    files.value = []
+  } catch (err: any) {
+    filesError.value = err.message || '加载文件失败'
+  } finally {
+    filesLoading.value = false
+  }
+}
+
+const selectFile = async (file: any) => {
+  if (file.type === 'dir') {
+    return
+  }
+  
+  currentFile.value = file
+  try {
+    fileContentLoading.value = true
+    fileContentError.value = ''
+    // TODO: 当 API 支持文件内容接口后替换
+    // const response = await repoApi.getFileContent(owner.value, repo.value, file.path, selectedBranch.value)
+    // currentFile.value.content = response.content
+    currentFile.value.content = ''
+  } catch (err: any) {
+    fileContentError.value = err.message || '加载文件内容失败'
+  } finally {
+    fileContentLoading.value = false
+  }
+}
+
+const getFileIcon = (name: string): string => {
+  const ext = name.split('.').pop()?.toLowerCase() || ''
+  const iconMap: Record<string, string> = {
+    ts: '📘', tsx: '📘', js: '📙', jsx: '📙',
+    vue: '💚', go: '🔵', py: '🐍', rs: '🦀',
+    md: '📝', json: '📋', yaml: '📋', yml: '📋',
+    css: '🎨', scss: '🎨', html: '🌐'
+  }
+  return iconMap[ext] || '📄'
+}
+
+onMounted(() => {
+  loadBranches()
+  loadFiles()
 })
 </script>
 
@@ -150,6 +214,16 @@ const currentFile = ref({
   transition: color 0.3s;
 }
 
+.loading-state,
+.error-state {
+  padding: 20px 0;
+  color: var(--text-secondary);
+}
+
+.error-state {
+  color: var(--danger-color);
+}
+
 .file-list {
   list-style: none;
   padding: 0;
@@ -166,6 +240,11 @@ const currentFile = ref({
 
 .file-item:hover {
   background: var(--bg-primary);
+}
+
+.file-item.active {
+  background: var(--accent-color);
+  color: #fff;
 }
 
 .file-icon {

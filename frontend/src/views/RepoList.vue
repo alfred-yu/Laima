@@ -123,7 +123,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { repoApi from '../services/api';
+import { repoApi } from '../services/api';
 import { Skeleton, Modal } from '../components';
 
 const repos = ref<any[]>([]);

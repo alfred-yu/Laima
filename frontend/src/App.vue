@@ -1,5 +1,5 @@
 <template>
-  <div class="app-layout">
+  <div class="app-layout" v-if="!isAuthPage">
     <!-- ============ SIDEBAR ============ -->
     <aside class="sidebar" :class="{ 'sidebar-collapsed': !isSidebarOpened }">
       <!-- Logo -->
@@ -182,19 +182,27 @@
       </main>
     </div>
   </div>
+  <router-view v-else />
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useGlobalStore, useUserStore } from './stores'
 import { ThemeToggle } from './components'
 
+const route = useRoute()
 const globalStore = useGlobalStore()
 const userStore = useUserStore()
 
 const isSidebarOpened = computed(() => globalStore.isSidebarOpened)
 const isLoggedIn = computed(() => userStore.isLoggedIn)
 const currentUser = computed(() => userStore.currentUser)
+
+// 检查是否为登录或注册页面
+const isAuthPage = computed(() => {
+  return route.path === '/login' || route.path === '/register'
+})
 
 const toggleSidebar = () => {
   globalStore.toggleSidebar()

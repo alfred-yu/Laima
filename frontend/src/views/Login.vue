@@ -1,137 +1,145 @@
 <template>
   <div class="login-page">
-    <!-- Hero Section with Brand Focus -->
-    <div class="hero-section">
-      <div class="hero-content">
-        <!-- Brand Logo and Identity -->
-        <div class="brand-identity">
-          <div class="brand-logo">
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="logo-icon">
-              <path d="M12 2L4 6V12C4 15.31 6.84 18.17 10.5 18.92V22H13.5V18.92C17.16 18.17 20 15.31 20 12V6L12 2Z" fill="currentColor" />
-              <path d="M12 4.5L18 7.5V12C18 14.8 15.31 17.08 12.5 17.67V19.5H11.5V17.67C8.69 17.08 6 14.8 6 12V7.5L12 4.5Z" fill="white" />
-              <circle cx="12" cy="11" r="2.5" fill="currentColor" />
-            </svg>
-          </div>
-          <h1 class="brand-title">Laima</h1>
-          <p class="brand-tagline">专业的代码托管平台</p>
-          <p class="brand-description">为开发团队提供安全、高效的代码管理解决方案，助力您的项目快速迭代与协作。</p>
+    <div class="login-container">
+      <!-- Brand Logo -->
+      <div class="brand-section">
+        <div class="brand-logo">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="logo-icon">
+            <path d="M12 2L4 6V12C4 15.31 6.84 18.17 10.5 18.92V22H13.5V18.92C17.16 18.17 20 15.31 20 12V6L12 2Z" fill="#fc6d26" />
+            <path d="M12 4.5L18 7.5V12C18 14.8 15.31 17.08 12.5 17.67V19.5H11.5V17.67C8.69 17.08 6 14.8 6 12V7.5L12 4.5Z" fill="white" />
+            <circle cx="12" cy="11" r="2.5" fill="#fc6d26" />
+          </svg>
         </div>
+        <h1 class="brand-title">登录到Laima</h1>
       </div>
-      
+
       <!-- Login Form -->
-      <div class="login-form-container">
-        <div class="form-card">
-          <div class="form-header">
-            <h2 class="form-title">登录</h2>
-            <p class="form-subtitle">欢迎回来，继续您的开发工作</p>
+      <div class="login-form">
+        <form @submit.prevent="handleLogin" class="form-content">
+          <!-- Username Field -->
+          <div class="form-group">
+            <label for="username" class="form-label">用户名或主要电子邮件</label>
+            <input 
+              type="text" 
+              id="username" 
+              v-model="form.username" 
+              required 
+              class="form-input"
+              :class="{ 'input-error': error && form.username }"
+            >
           </div>
           
-          <form @submit.prevent="handleLogin" class="form-content">
-            <div class="form-group">
-              <label for="username" class="form-label">用户名或邮箱</label>
-              <div class="input-wrapper">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="input-icon">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
+          <!-- Password Field -->
+          <div class="form-group">
+            <div class="label-row">
+              <label for="password" class="form-label">密码</label>
+              <router-link to="/forgot-password" class="forgot-link">忘记密码？</router-link>
+            </div>
+            <div class="password-input-wrapper">
+              <input 
+                type="password" 
+                id="password" 
+                v-model="form.password" 
+                required 
+                class="form-input"
+                :class="{ 'input-error': error && form.password }"
+              >
+              <button type="button" class="password-toggle">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
                 </svg>
-                <input 
-                  type="text" 
-                  id="username" 
-                  v-model="form.username" 
-                  required 
-                  placeholder="请输入用户名或邮箱"
-                  class="form-input"
-                  :class="{ 'input-error': error && form.username }"
-                >
-              </div>
-            </div>
-            
-            <div class="form-group">
-              <div class="label-row">
-                <label for="password" class="form-label">密码</label>
-                <router-link to="/forgot-password" class="forgot-link">忘记密码？</router-link>
-              </div>
-              <div class="input-wrapper">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="input-icon">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-                <input 
-                  type="password" 
-                  id="password" 
-                  v-model="form.password" 
-                  required 
-                  placeholder="请输入密码"
-                  class="form-input"
-                  :class="{ 'input-error': error && form.password }"
-                >
-              </div>
-            </div>
-            
-            <div class="form-group checkbox-group">
-              <input type="checkbox" id="remember" v-model="form.remember" class="form-checkbox">
-              <label for="remember" class="checkbox-label">记住我</label>
-            </div>
-            
-            <div v-if="error" class="error-message">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
-              <span>{{ error }}</span>
-            </div>
-            
-            <button 
-              type="submit" 
-              class="login-button"
-              :class="{ 'is-loading': isLoading }"
-              :disabled="isLoading"
-            >
-              <svg v-if="isLoading" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="loading-spinner">
-                <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32" />
-              </svg>
-              {{ isLoading ? '登录中...' : '登录' }}
-            </button>
-            
-            <div class="divider">
-              <span>或</span>
-            </div>
-            
-            <div class="social-login">
-              <button type="button" class="social-button github">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                </svg>
-                <span>使用 GitHub 登录</span>
               </button>
             </div>
-          </form>
+          </div>
           
+          <!-- Remember Checkbox -->
+          <div class="form-group checkbox-group">
+            <input type="checkbox" id="remember" v-model="form.remember" class="form-checkbox">
+            <label for="remember" class="checkbox-label">记住账号</label>
+          </div>
+          
+          <!-- Error Message -->
+          <div v-if="error" class="error-message">
+            <span>{{ error }}</span>
+          </div>
+          
+          <!-- Login Button -->
+          <button 
+            type="submit" 
+            class="login-button"
+            :class="{ 'is-loading': isLoading }"
+            :disabled="isLoading"
+          >
+            {{ isLoading ? '登录中...' : '登录' }}
+          </button>
+          
+          <!-- Passkey Button -->
+          <button type="button" class="passkey-button">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="passkey-icon">
+              <path d="M21 10c0-4.4-3.6-8-8-8s-8 3.6-8 8 3.6 8 8 8c1.2 0 2.4-.3 3.5-.8l2.7 2.7c.4.4 1 .4 1.4 0l1.4-1.4c.4-.4.4-1 0-1.4L17 14.5c.5-1.1.8-2.3.8-3.5zm-8 6c-3.3 0-6-2.7-6-6s2.7-6 6-6 6 2.7 6 6-2.7 6-6 6z" />
+            </svg>
+            通行密钥
+          </button>
+          
+          <!-- Footer Links -->
           <div class="form-footer">
+            <p class="terms-text">
+              登录即表示您接受使用条款并接受隐私政策和 Cookie 政策。
+            </p>
             <p class="register-link">
-              还没有账号？
+              还没有账户？
               <router-link to="/register" class="register-button">立即注册</router-link>
             </p>
           </div>
+        </form>
+        
+        <!-- Divider -->
+        <div class="divider">
+          <span>或使用以下账户登录</span>
+        </div>
+        
+        <!-- Social Login Buttons -->
+        <div class="social-login">
+          <button type="button" class="social-button">
+            <svg width="18" height="18" viewBox="0 0 24 24" class="social-icon google">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            Google
+          </button>
+          
+          <button type="button" class="social-button">
+            <svg width="18" height="18" viewBox="0 0 24 24" class="social-icon github" fill="currentColor">
+              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+            GitHub
+          </button>
+          
+          <button type="button" class="social-button">
+            <svg width="18" height="18" viewBox="0 0 24 24" class="social-icon bitbucket" fill="currentColor">
+              <path d="M2 0c-.55 0-1 .45-1 1.03l1.71 21.94c.07.55.53.98 1.08.98h15.44c.55 0 1.01-.43 1.08-.98L23 1.03c0-.58-.45-1.03-1-1H2zm12.33 16.01h-3.04l-.91-5.5h4.88l-.93 5.5zm1.71-8.5H7.96l-.37-2h8.82l-.37 2z"/>
+            </svg>
+            Bitbucket
+          </button>
+          
+          <button type="button" class="social-button">
+            <svg width="18" height="18" viewBox="0 0 24 24" class="social-icon salesforce" fill="currentColor">
+              <path d="M10.095 18.173a2.068 2.068 0 0 1-2.067 2.068 2.068 2.068 0 0 1-2.067-2.068 2.068 2.068 0 0 1 2.067-2.067 2.068 2.068 0 0 1 2.067 2.067m.689-8.59a2.756 2.756 0 0 1 2.755 2.756 2.756 2.756 0 0 1-2.755 2.755 2.756 2.756 0 0 1-2.756-2.755 2.756 2.756 0 0 1 2.756-2.756m2.631-4.582a3.444 3.444 0 0 1 3.443 3.443 3.444 3.444 0 0 1-3.443 3.443 3.444 3.444 0 0 1-3.443-3.443 3.444 3.444 0 0 1 3.443-3.443m2.522 15.155a2.068 2.068 0 0 1-2.067 2.068 2.068 2.068 0 0 1-2.067-2.068 2.068 2.068 0 0 1 2.067-2.067 2.068 2.068 0 0 1 2.067 2.067m2.589-10.572a2.068 2.068 0 0 1-2.067 2.068 2.068 2.068 0 0 1-2.067-2.068 2.068 2.068 0 0 1 2.067-2.067 2.068 2.068 0 0 1 2.067 2.067M8.395 7.574a2.396 2.396 0 0 1-2.395 2.395 2.396 2.396 0 0 1-2.395-2.395 2.396 2.396 0 0 1 2.395-2.395 2.396 2.396 0 0 1 2.395 2.395M5.764 15.155a2.068 2.068 0 0 1-2.067 2.068A2.068 2.068 0 0 1 1.63 15.155a2.068 2.068 0 0 1 2.067-2.067 2.068 2.068 0 0 1 2.067 2.067"/>
+            </svg>
+            Salesforce
+          </button>
+        </div>
+        
+        <!-- Remember Account -->
+        <div class="remember-bottom">
+          <input type="checkbox" id="remember-bottom" v-model="form.remember" class="form-checkbox">
+          <label for="remember-bottom" class="checkbox-label">记住账号</label>
         </div>
       </div>
     </div>
-
-    <!-- Footer -->
-    <footer class="login-footer">
-      <div class="footer-content">
-        <div class="footer-links">
-          <a href="#" class="footer-link">关于我们</a>
-          <a href="#" class="footer-link">隐私政策</a>
-          <a href="#" class="footer-link">服务条款</a>
-          <a href="#" class="footer-link">帮助中心</a>
-        </div>
-        <div class="footer-copyright">
-          © 2026 Laima. 保留所有权利
-        </div>
-      </div>
-    </footer>
   </div>
 </template>
 
@@ -177,123 +185,63 @@ const handleLogin = async () => {
 .login-page {
   min-height: 100vh;
   display: flex;
-  flex-direction: column;
-  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
-}
-
-/* Hero Section */
-.hero-section {
-  flex: 1;
-  display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 48px;
-  min-height: 80vh;
-  position: relative;
-  overflow: hidden;
-  gap: 64px;
+  background: #ffffff;
+  padding: 48px 16px;
 }
 
-/* Brand Identity */
-.hero-content {
-  flex: 1;
-  max-width: 420px;
-  z-index: 2;
+.login-container {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.brand-identity {
-  animation: fadeInLeft 0.8s ease-out;
+/* Brand Section */
+.brand-section {
+  text-align: center;
+  margin-bottom: 32px;
 }
 
 .brand-logo {
-  margin-bottom: 32px;
+  margin-bottom: 16px;
 }
 
 .logo-icon {
-  width: 80px;
-  height: 80px;
-  color: var(--color-primary);
-  margin-bottom: 24px;
-  transition: transform 0.3s ease-out;
-}
-
-.logo-icon:hover {
-  transform: scale(1.1);
+  width: 64px;
+  height: 64px;
 }
 
 .brand-title {
-  font-size: 3.5rem;
-  font-weight: 800;
-  color: var(--text-primary);
-  margin: 0 0 16px 0;
-  letter-spacing: -0.025em;
-  line-height: 1.1;
-}
-
-.brand-tagline {
   font-size: 1.25rem;
-  color: var(--color-primary);
-  font-weight: 600;
-  margin: 0 0 24px 0;
-}
-
-.brand-description {
-  font-size: 1.125rem;
-  color: var(--text-secondary);
-  line-height: 1.6;
-  margin: 0;
-  max-width: 450px;
-}
-
-/* Login Form Container */
-.login-form-container {
-  flex: 1;
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-  z-index: 2;
-}
-
-.form-card {
-  width: 100%;
-  max-width: 400px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 40px;
-  box-shadow: var(--shadow-xl);
-  animation: fadeInRight 0.8s ease-out;
-  backdrop-filter: blur(10px);
-}
-
-.form-header {
-  margin-bottom: 32px;
-  text-align: center;
-}
-
-.form-title {
-  font-size: 1.5rem;
   font-weight: 700;
-  color: var(--text-primary);
-  margin: 0 0 8px 0;
+  color: #333;
+  margin: 0;
 }
 
-.form-subtitle {
-  font-size: 0.9375rem;
-  color: var(--text-secondary);
-  margin: 0;
+/* Login Form */
+.login-form {
+  width: 100%;
 }
 
 .form-content {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+}
+
+.form-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #333;
 }
 
 .label-row {
@@ -302,143 +250,166 @@ const handleLogin = async () => {
   align-items: center;
 }
 
-.form-label {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
 .forgot-link {
-  font-size: 0.875rem;
-  color: var(--color-primary);
+  font-size: 0.75rem;
+  color: #1f78d1;
   text-decoration: none;
-  font-weight: 500;
-  transition: color 0.15s ease-out;
 }
 
 .forgot-link:hover {
-  color: var(--color-primary-hover);
   text-decoration: underline;
-}
-
-.input-wrapper {
-  position: relative;
-}
-
-.input-icon {
-  position: absolute;
-  left: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-  pointer-events: none;
 }
 
 .form-input {
   width: 100%;
-  padding: 16px 16px 16px 48px;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid #bfbfbf;
+  border-radius: 6px;
   font-size: 0.9375rem;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  transition: all 0.15s ease-out;
+  background: #fff;
+  color: #333;
+  transition: border-color 0.1s ease;
 }
 
 .form-input:focus {
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 4px var(--color-primary-bg);
-  transform: translateY(-1px);
+  border-color: #1f78d1;
+  box-shadow: 0 0 0 3px rgba(31, 120, 209, 0.15);
 }
 
 .input-error {
-  border-color: var(--color-danger);
+  border-color: #d93025;
+}
+
+.password-input-wrapper {
+  position: relative;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .checkbox-group {
-  display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 8px;
-  flex-direction: row;
+  margin-top: 4px;
 }
 
 .form-checkbox {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--color-primary);
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #1f78d1;
 }
 
 .checkbox-label {
   font-size: 0.875rem;
-  color: var(--text-secondary);
+  color: #666;
   cursor: pointer;
+  margin: 0;
 }
 
 .error-message {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  background: var(--color-danger-bg);
-  color: var(--color-danger);
-  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fef0f0;
+  color: #d93025;
+  border: 1px solid #fde2e2;
+  border-radius: 6px;
   font-size: 0.875rem;
-  border: 1px solid rgba(220, 38, 38, 0.2);
+  text-align: center;
 }
 
 .login-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 16px;
-  background: var(--color-primary);
+  width: 100%;
+  padding: 12px 16px;
+  background: #1f78d1;
   color: white;
-  border: 1px solid var(--color-primary);
-  border-radius: 12px;
-  font-size: 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9375rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease-out;
-  margin-top: 8px;
+  transition: background 0.1s ease;
+  margin-top: 4px;
 }
 
 .login-button:hover:not(:disabled) {
-  background: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+  background: #1a5fa5;
 }
 
 .login-button:disabled {
-  background: var(--bg-tertiary);
-  border-color: var(--border-color);
-  color: var(--text-muted);
+  background: #ccc;
   cursor: not-allowed;
-  transform: none;
 }
 
 .is-loading {
   opacity: 0.8;
 }
 
-.loading-spinner {
-  animation: spin 1s linear infinite;
+.passkey-button {
+  width: 100%;
+  padding: 10px 16px;
+  background: white;
+  color: #333;
+  border: 1px solid #bfbfbf;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+.passkey-button:hover {
+  background: #f5f5f5;
+  border-color: #999;
 }
 
-.loading-spinner circle {
-  animation: dash 1.5s ease-in-out infinite;
+.passkey-icon {
+  color: #333;
 }
 
-@keyframes dash {
-  0% { stroke-dashoffset: 32; }
-  50% { stroke-dashoffset: 8; }
-  100% { stroke-dashoffset: 32; }
+.form-footer {
+  text-align: center;
+  margin-top: 8px;
+}
+
+.terms-text {
+  font-size: 0.75rem;
+  color: #666;
+  margin: 0 0 12px 0;
+  line-height: 1.4;
+}
+
+.register-link {
+  font-size: 0.875rem;
+  color: #666;
+  margin: 0;
+}
+
+.register-button {
+  color: #1f78d1;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.register-button:hover {
+  text-decoration: underline;
 }
 
 .divider {
@@ -448,225 +419,69 @@ const handleLogin = async () => {
   margin: 24px 0;
 }
 
-.divider::before {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border-color);
-}
-
-.divider span {
-  padding: 0 16px;
-  font-size: 0.8125rem;
-  color: var(--text-muted);
-  background: var(--bg-primary);
-}
-
+.divider::before,
 .divider::after {
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--border-color);
+  background: #e5e5e5;
+}
+
+.divider span {
+  padding: 0 16px;
+  font-size: 0.75rem;
+  color: #666;
+  background: white;
 }
 
 .social-login {
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .social-button {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 14px;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  width: 100%;
+  padding: 10px 16px;
+  background: white;
+  color: #333;
+  border: 1px solid #bfbfbf;
+  border-radius: 6px;
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease-out;
+  transition: all 0.1s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 }
 
 .social-button:hover {
-  background: var(--bg-secondary);
-  border-color: var(--color-gray-300);
-  transform: translateY(-1px);
+  background: #f5f5f5;
+  border-color: #999;
 }
 
-.social-button.github {
-  border-color: var(--color-gray-700);
-  color: var(--color-gray-700);
-  background: var(--bg-primary);
+.social-icon {
+  flex-shrink: 0;
 }
 
-.social-button.github:hover {
-  background: var(--color-gray-50);
-  border-color: var(--color-gray-600);
-}
-
-.form-footer {
-  margin-top: 32px;
-  text-align: center;
-}
-
-.register-link {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.register-button {
-  color: var(--color-primary);
-  font-weight: 600;
-  text-decoration: none;
-  transition: color 0.15s ease-out;
-}
-
-.register-button:hover {
-  color: var(--color-primary-hover);
-  text-decoration: underline;
-}
-
-/* Footer */
-.login-footer {
-  padding: 32px 64px;
-  border-top: 1px solid var(--border-color);
-  background: var(--bg-primary);
-}
-
-.footer-content {
+.remember-bottom {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 16px;
-}
-
-.footer-links {
-  display: flex;
-  gap: 32px;
-  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
   justify-content: center;
 }
 
-.footer-link {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  text-decoration: none;
-  transition: color 0.15s ease-out;
-}
-
-.footer-link:hover {
-  color: var(--color-primary);
-  text-decoration: underline;
-}
-
-.footer-copyright {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-/* Animations */
-@keyframes fadeInLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes fadeInRight {
-  from {
-    opacity: 0;
-    transform: translateX(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
 /* Responsive Design */
-@media (max-width: 1024px) {
-  .hero-section {
-    flex-direction: column;
-    padding: 48px 32px;
-    text-align: center;
-  }
-  
-  .hero-content {
-    max-width: 100%;
-    margin-bottom: 48px;
-  }
-  
-  .brand-title {
-    font-size: 2.5rem;
-  }
-  
-  .login-form-container {
-    justify-content: center;
-  }
-  
-  .form-card {
-    max-width: 400px;
-  }
-  
-  .login-footer {
-    padding: 24px 32px;
-  }
-}
-
-@media (max-width: 768px) {
-  .hero-section {
-    padding: 32px 24px;
-  }
-  
-  .brand-title {
-    font-size: 2rem;
-  }
-  
-  .form-card {
-    padding: 32px;
-  }
-  
-  .footer-links {
-    gap: 24px;
-  }
-}
-
 @media (max-width: 480px) {
-  .hero-section {
-    padding: 24px 16px;
+  .login-page {
+    padding: 32px 16px;
   }
   
-  .brand-title {
-    font-size: 1.75rem;
-  }
-  
-  .form-card {
-    padding: 24px;
-  }
-  
-  .form-content {
-    gap: 16px;
-  }
-  
-  .login-button {
-    padding: 14px;
-  }
-  
-  .login-footer {
-    padding: 20px 16px;
-  }
-  
-  .footer-links {
-    gap: 16px;
+  .login-container {
+    max-width: 100%;
   }
 }
 </style>

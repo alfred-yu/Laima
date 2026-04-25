@@ -113,6 +113,12 @@ const router = createRouter({
       name: 'settings',
       component: () => import('../views/Setting.vue'),
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/activity',
+      name: 'activity',
+      component: () => import('../views/UserActivity.vue'),
+      meta: { requiresAuth: true }
     }
   ]
 })

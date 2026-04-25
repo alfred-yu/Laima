@@ -84,6 +84,15 @@
             <span class="nav-text">CI/CD</span>
           </router-link>
 
+          <router-link to="/activity" class="nav-item" active-class="nav-item-active">
+            <div class="nav-icon-wrapper">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
+            </div>
+            <span class="nav-text">活动记录</span>
+          </router-link>
+
           <router-link to="/settings" class="nav-item" active-class="nav-item-active">
             <div class="nav-icon-wrapper">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

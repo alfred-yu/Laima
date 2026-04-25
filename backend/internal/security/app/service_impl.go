@@ -1,14 +1,10 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"laima/internal/security/domain"
@@ -241,7 +237,7 @@ func (s *SecurityServiceImpl) RunDASTScan(scanID int) error {
 	}
 
 	// 获取DAST配置
-	config, err := s.GetDASTConfig(scan.RepositoryID)
+	_, err = s.GetDASTConfig(scan.RepositoryID)
 	if err != nil {
 		return err
 	}

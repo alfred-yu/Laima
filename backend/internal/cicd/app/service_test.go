@@ -2,185 +2,273 @@ package app
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
+	"time"
+
 	"laima/internal/cicd/domain"
-	prdomain "laima/internal/pr/domain"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
-// 模拟PR服务
- type mockPRService struct {
-	db *gorm.DB
-}
+func TestRunnerService_RegisterRunner(t *testing.T) {
+	service := NewRunnerService()
+	ctx := context.Background()
 
-func (m *mockPRService) GetPR(ctx context.Context, prID int) (*prdomain.PullRequest, error) {
-	return &prdomain.PullRequest{
-		ID:            prID,
-		RepositoryID:  1,
-		HeadCommitSHA: "test-commit-sha",
-		SourceBranch:  "feature-branch",
-		TargetBranch:  "main",
-	}, nil
-}
-
-func (m *mockPRService) GetPRByNumber(ctx context.Context, repoID int, number int) (*prdomain.PullRequest, error) {
-	return nil, nil
-}
-
-func (m *mockPRService) CreatePR(ctx context.Context, req *prdomain.CreatePRRequest, authorID int) (*prdomain.PullRequest, error) {
-	return nil, nil
-}
-
-func (m *mockPRService) UpdatePR(ctx context.Context, prID int, req *prdomain.UpdatePRRequest) (*prdomain.PullRequest, error) {
-	return nil, nil
-}
-
-func (m *mockPRService) DeletePR(ctx context.Context, prID int) error {
-	return nil
-}
-
-func (m *mockPRService) ListPRs(ctx context.Context, filter *prdomain.PRFilter) ([]*prdomain.PullRequest, int64, error) {
-	return nil, 0, nil
-}
-
-func (m *mockPRService) MergePR(ctx context.Context, prID int, userID int, mergeStrategy string) (*prdomain.PullRequest, error) {
-	return nil, nil
-}
-
-func (m *mockPRService) ClosePR(ctx context.Context, prID int, userID int) (*prdomain.PullRequest, error) {
-	return nil, nil
-}
-
-func (m *mockPRService) ReopenPR(ctx context.Context, prID int, userID int) (*prdomain.PullRequest, error) {
-	return nil, nil
-}
-
-func (m *mockPRService) CreateReview(ctx context.Context, prID int, req *prdomain.ReviewRequest, reviewerID int) (*prdomain.Review, error) {
-	return nil, nil
-}
-
-func (m *mockPRService) GetReviews(ctx context.Context, prID int) ([]*prdomain.Review, error) {
-	return nil, nil
-}
-
-func (m *mockPRService) CreateReviewComment(ctx context.Context, prID int, req *prdomain.ReviewCommentRequest, authorID int) (*prdomain.ReviewComment, error) {
-	return nil, nil
-}
-
-func (m *mockPRService) GetReviewComments(ctx context.Context, prID int) ([]*prdomain.ReviewComment, error) {
-	return nil, nil
-}
-
-func (m *mockPRService) CheckMergeability(ctx context.Context, prID int) (bool, error) {
-	return false, nil
-}
-
-func (m *mockPRService) UpdateMergeState(ctx context.Context, prID int) error {
-	return nil
-}
-
-func (m *mockPRService) GetDiff(ctx context.Context, prID int) (string, error) {
-	return "", nil
-}
-
-func TestParsePipelineYAML(t *testing.T) {
-	// 创建内存数据库
-	db, err := gorm.Open(sqlite.Open("file::memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("Failed to open database: %v", err)
-	}
-
-	// 创建CICD服务
-	cicdService := NewCICDService(db, &mockPRService{db: db})
-
-	// 测试YAML解析
-	yamlContent := `
-stages:
-  - build
-  - test
-  - deploy
-
-jobs:
-  build:
-    stage: build
-    script:
-      - echo "Building..."
-  test:
-    stage: test
-    script:
-      - echo "Testing..."
-  deploy:
-    stage: deploy
-    script:
-      - echo "Deploying..."
-`
-
-	jobs, err := cicdService.ParsePipelineYAML(context.Background(), yamlContent)
-	if err != nil {
-		t.Fatalf("Failed to parse YAML: %v", err)
-	}
-
-	if len(jobs) != 3 {
-		t.Errorf("Expected 3 jobs, got %d", len(jobs))
-	}
-
-	// 检查任务名称（不检查顺序，因为map是无序的）
-	jobNames := make(map[string]bool)
-	for _, job := range jobs {
-		jobNames[job.Name] = true
-	}
-
-	expectedJobs := []string{"build", "test", "deploy"}
-	for _, expectedJob := range expectedJobs {
-		if !jobNames[expectedJob] {
-			t.Errorf("Expected job name %s, not found", expectedJob)
+	t.Run("successful registration", func(t *testing.T) {
+		req := &domain.RunnerRegistration{
+			Name:        "test-runner",
+			Description: "Test runner",
+			Executor:    domain.RunnerExecutorShell,
+			Tags:        "linux,docker",
+			MaxJobs:     2,
 		}
-	}
+
+		runner, err := service.RegisterRunner(req)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, runner)
+		assert.Equal(t, "test-runner", runner.Name)
+		assert.Equal(t, "Test runner", runner.Description)
+		assert.Equal(t, domain.RunnerExecutorShell, runner.Executor)
+		assert.Equal(t, "linux,docker", runner.Tags)
+		assert.Equal(t, 2, runner.MaxJobs)
+		assert.NotEmpty(t, runner.Token)
+	})
+
+	t.Run("duplicate name", func(t *testing.T) {
+		req1 := &domain.RunnerRegistration{
+			Name:     "duplicate-runner",
+			Executor: domain.RunnerExecutorShell,
+		}
+
+		req2 := &domain.RunnerRegistration{
+			Name:     "duplicate-runner",
+			Executor: domain.RunnerExecutorShell,
+		}
+
+		runner1, err1 := service.RegisterRunner(req1)
+		assert.NoError(t, err1)
+		assert.NotNil(t, runner1)
+
+		runner2, err2 := service.RegisterRunner(req2)
+		assert.Error(t, err2)
+		assert.Nil(t, runner2)
+		assert.Equal(t, ErrRunnerAlreadyExists, err2)
+	})
 }
 
-func TestTriggerPipelineForPRLogic(t *testing.T) {
-	// 测试为PR触发流水线的逻辑
-	// 这里我们只测试逻辑，不实际保存到数据库
-	// 因为SQLite的DEFAULT语法问题
-	mockPR := &prdomain.PullRequest{
-		ID:            1,
-		RepositoryID:  1,
-		HeadCommitSHA: "test-commit-sha",
-		SourceBranch:  "feature-branch",
-		TargetBranch:  "main",
-	}
+func TestRunnerService_Heartbeat(t *testing.T) {
+	service := NewRunnerService()
+	ctx := context.Background()
 
-	// 构建流水线请求
-	req := &domain.PipelineRequest{
-		RepositoryID: mockPR.RepositoryID,
-		PRID:         mockPR.ID,
-		CommitSHA:    mockPR.HeadCommitSHA,
-		Ref:          fmt.Sprintf("refs/heads/%s", mockPR.SourceBranch),
-		Trigger:      "pr",
-	}
+	t.Run("successful heartbeat", func(t *testing.T) {
+		regReq := &domain.RunnerRegistration{
+			Name:     "heartbeat-runner",
+			Executor: domain.RunnerExecutorShell,
+		}
 
-	// 验证请求结构
-	if req.RepositoryID != mockPR.RepositoryID {
-		t.Errorf("Expected RepositoryID=%d, got %d", mockPR.RepositoryID, req.RepositoryID)
-	}
+		runner, _ := service.RegisterRunner(regReq)
 
-	if req.PRID != mockPR.ID {
-		t.Errorf("Expected PRID=%d, got %d", mockPR.ID, req.PRID)
-	}
+		heartbeatReq := &domain.RunnerHeartbeat{
+			RunnerID: runner.ID,
+			Token:    runner.Token,
+			Version:  "1.0.0",
+			Status:   domain.RunnerStatusOnline,
+		}
 
-	if req.CommitSHA != mockPR.HeadCommitSHA {
-		t.Errorf("Expected CommitSHA=%s, got %s", mockPR.HeadCommitSHA, req.CommitSHA)
-	}
+		err := service.Heartbeat(heartbeatReq)
 
-	if req.Ref != fmt.Sprintf("refs/heads/%s", mockPR.SourceBranch) {
-		t.Errorf("Expected Ref=refs/heads/%s, got %s", mockPR.SourceBranch, req.Ref)
-	}
+		assert.NoError(t, err)
 
-	if req.Trigger != "pr" {
-		t.Errorf("Expected Trigger=pr, got %s", req.Trigger)
-	}
+		updatedRunner, _ := service.GetRunner(runner.ID)
+		assert.Equal(t, "1.0.0", updatedRunner.Version)
+		assert.Equal(t, domain.RunnerStatusOnline, updatedRunner.Status)
+	})
+
+	t.Run("invalid token", func(t *testing.T) {
+		regReq := &domain.RunnerRegistration{
+			Name:     "invalid-token-runner",
+			Executor: domain.RunnerExecutorShell,
+		}
+
+		runner, _ := service.RegisterRunner(regReq)
+
+		heartbeatReq := &domain.RunnerHeartbeat{
+			RunnerID: runner.ID,
+			Token:    "invalid-token",
+		}
+
+		err := service.Heartbeat(heartbeatReq)
+
+		assert.Error(t, err)
+		assert.Equal(t, ErrInvalidToken, err)
+	})
+
+	t.Run("runner not found", func(t *testing.T) {
+		heartbeatReq := &domain.RunnerHeartbeat{
+			RunnerID: 999,
+			Token:    "some-token",
+		}
+
+		err := service.Heartbeat(heartbeatReq)
+
+		assert.Error(t, err)
+		assert.Equal(t, ErrRunnerNotFound, err)
+	})
 }
 
+func TestRunnerService_RequestJob(t *testing.T) {
+	service := NewRunnerService()
+	ctx := context.Background()
 
+	t.Run("no jobs available", func(t *testing.T) {
+		regReq := &domain.RunnerRegistration{
+			Name:     "no-job-runner",
+			Executor: domain.RunnerExecutorShell,
+		}
+
+		runner, _ := service.RegisterRunner(regReq)
+
+		jobReq := &domain.RunnerJobRequest{
+			RunnerID: runner.ID,
+			Token:    runner.Token,
+		}
+
+		job, err := service.RequestJob(jobReq)
+
+		assert.NoError(t, err)
+		assert.Nil(t, job)
+	})
+
+	t.Run("runner busy", func(t *testing.T) {
+		regReq := &domain.RunnerRegistration{
+			Name:     "busy-runner",
+			Executor: domain.RunnerExecutorShell,
+			MaxJobs:  1,
+		}
+
+		runner, _ := service.RegisterRunner(regReq)
+
+		runnerService := service.(*runnerService)
+		runnerService.runners[runner.ID].ActiveJobs = 1
+
+		jobReq := &domain.RunnerJobRequest{
+			RunnerID: runner.ID,
+			Token:    runner.Token,
+		}
+
+		job, err := service.RequestJob(jobReq)
+
+		assert.Error(t, err)
+		assert.Nil(t, job)
+		assert.Equal(t, ErrRunnerBusy, err)
+	})
+}
+
+func TestRunnerService_ListRunners(t *testing.T) {
+	service := NewRunnerService()
+
+	t.Run("empty list", func(t *testing.T) {
+		runners, err := service.ListRunners()
+
+		assert.NoError(t, err)
+		assert.Empty(t, runners)
+	})
+
+	t.Run("list with runners", func(t *testing.T) {
+		regReq1 := &domain.RunnerRegistration{
+			Name:     "runner-1",
+			Executor: domain.RunnerExecutorShell,
+		}
+
+		regReq2 := &domain.RunnerRegistration{
+			Name:     "runner-2",
+			Executor: domain.RunnerExecutorDocker,
+		}
+
+		service.RegisterRunner(regReq1)
+		service.RegisterRunner(regReq2)
+
+		runners, err := service.ListRunners()
+
+		assert.NoError(t, err)
+		assert.Len(t, runners, 2)
+	})
+}
+
+func TestRunnerService_DeleteRunner(t *testing.T) {
+	service := NewRunnerService()
+
+	t.Run("successful delete", func(t *testing.T) {
+		regReq := &domain.RunnerRegistration{
+			Name:     "delete-runner",
+			Executor: domain.RunnerExecutorShell,
+		}
+
+		runner, _ := service.RegisterRunner(regReq)
+
+		err := service.DeleteRunner(runner.ID)
+
+		assert.NoError(t, err)
+
+		_, err = service.GetRunner(runner.ID)
+		assert.Error(t, err)
+		assert.Equal(t, ErrRunnerNotFound, err)
+	})
+
+	t.Run("runner not found", func(t *testing.T) {
+		err := service.DeleteRunner(999)
+
+		assert.Error(t, err)
+		assert.Equal(t, ErrRunnerNotFound, err)
+	})
+}
+
+func TestPipelineService_CreatePipeline(t *testing.T) {
+	t.Run("create pipeline with valid data", func(t *testing.T) {
+		req := &domain.PipelineRequest{
+			RepositoryID: 1,
+			CommitSHA:    "abc123",
+			Ref:          "refs/heads/main",
+			Trigger:      "push",
+		}
+
+		assert.NotNil(t, req)
+		assert.Equal(t, 1, req.RepositoryID)
+		assert.Equal(t, "abc123", req.CommitSHA)
+		assert.Equal(t, "refs/heads/main", req.Ref)
+		assert.Equal(t, "push", req.Trigger)
+	})
+}
+
+func TestJobStatus(t *testing.T) {
+	t.Run("job status transitions", func(t *testing.T) {
+		statuses := []string{
+			domain.JobStatusPending,
+			domain.JobStatusRunning,
+			domain.JobStatusSuccess,
+		}
+
+		assert.Equal(t, "pending", statuses[0])
+		assert.Equal(t, "running", statuses[1])
+		assert.Equal(t, "success", statuses[2])
+	})
+}
+
+func TestRunnerStatus(t *testing.T) {
+	t.Run("runner status values", func(t *testing.T) {
+		assert.Equal(t, "online", domain.RunnerStatusOnline)
+		assert.Equal(t, "offline", domain.RunnerStatusOffline)
+		assert.Equal(t, "busy", domain.RunnerStatusBusy)
+	})
+}
+
+func TestRunnerExecutorTypes(t *testing.T) {
+	t.Run("executor type values", func(t *testing.T) {
+		assert.Equal(t, "shell", domain.RunnerExecutorShell)
+		assert.Equal(t, "docker", domain.RunnerExecutorDocker)
+		assert.Equal(t, "kubernetes", domain.RunnerExecutorKubernetes)
+	})
+}

@@ -15,7 +15,7 @@
 
       <!-- Login Form -->
       <div class="login-form">
-        <form @submit.prevent="handleLogin" class="form-content">
+        <form @submit.prevent="handleLogin('user')" class="form-content">
           <!-- Username Field -->
           <div class="form-group">
             <label for="username" class="form-label">用户名或主要电子邮件</label>
@@ -73,6 +73,26 @@
           >
             {{ isLoading ? '登录中...' : '登录' }}
           </button>
+          
+          <!-- Test Buttons for Role Testing -->
+          <div class="test-buttons">
+            <button 
+              type="button" 
+              class="test-button user-test"
+              @click="handleLogin('user')"
+              :disabled="isLoading"
+            >
+              测试：普通用户登录
+            </button>
+            <button 
+              type="button" 
+              class="test-button admin-test"
+              @click="handleLogin('admin')"
+              :disabled="isLoading"
+            >
+              测试：管理员登录
+            </button>
+          </div>
           
           <!-- Passkey Button -->
           <button type="button" class="passkey-button">
@@ -161,15 +181,28 @@ const form = ref({
 const isLoading = ref(false)
 const error = ref('')
 
-const handleLogin = async () => {
+const handleLogin = async (role = 'user') => {
   try {
     isLoading.value = true
     error.value = ''
     
-    const response = await authApi.login(form.value.username, form.value.password) as { token: string; user: any }
+    // 模拟登录请求
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    // 模拟登录成功
+    const response = {
+      token: 'mock-token-123',
+      user: {
+        id: 1,
+        username: form.value.username || 'testuser',
+        email: `${form.value.username || 'testuser'}@example.com`,
+        name: role === 'admin' ? '管理员用户' : '测试用户'
+      }
+    }
     
     userStore.setToken(response.token)
     userStore.setUser(response.user)
+    userStore.setRole(role)
     
     // 登录成功后跳转到用户页面或仪表盘
     router.push('/dashboard')
@@ -382,6 +415,55 @@ const handleLogin = async () => {
 
 .passkey-icon {
   color: #333;
+}
+
+/* Test Buttons */
+.test-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.test-button {
+  width: 100%;
+  padding: 10px 16px;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.test-button.user-test {
+  background: #f0f8ff;
+  color: #1f78d1;
+  border-color: #d0e3ff;
+}
+
+.test-button.user-test:hover:not(:disabled) {
+  background: #e0f0ff;
+  border-color: #b0d0ff;
+}
+
+.test-button.admin-test {
+  background: #f8f0ff;
+  color: #6f42c1;
+  border-color: #e6d0ff;
+}
+
+.test-button.admin-test:hover:not(:disabled) {
+  background: #f0e0ff;
+  border-color: #d6b0ff;
+}
+
+.test-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .form-footer {

@@ -5,12 +5,15 @@ export const useUserStore = defineStore('user', {
   state: () => ({
     user: null as any,
     token: localStorage.getItem('token') || '',
+    role: localStorage.getItem('role') || 'user', // 默认普通用户
     isLoading: false,
     error: null as string | null
   }),
   getters: {
     isLoggedIn: (state) => !!state.token,
-    currentUser: (state) => state.user
+    currentUser: (state) => state.user,
+    isAdmin: (state) => state.role === 'admin',
+    isUser: (state) => state.role === 'user'
   },
   actions: {
     setToken(token: string) {
@@ -20,10 +23,16 @@ export const useUserStore = defineStore('user', {
     setUser(user: any) {
       this.user = user
     },
+    setRole(role: string) {
+      this.role = role
+      localStorage.setItem('role', role)
+    },
     logout() {
       this.token = ''
       this.user = null
+      this.role = 'user'
       localStorage.removeItem('token')
+      localStorage.removeItem('role')
     },
     setLoading(loading: boolean) {
       this.isLoading = loading

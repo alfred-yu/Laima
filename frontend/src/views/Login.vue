@@ -186,17 +186,18 @@ const handleLogin = async () => {
   flex: 1;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 64px;
+  justify-content: center;
+  padding: 0 48px;
   min-height: 80vh;
   position: relative;
   overflow: hidden;
+  gap: 64px;
 }
 
 /* Brand Identity */
 .hero-content {
   flex: 1;
-  max-width: 500px;
+  max-width: 420px;
   z-index: 2;
 }
 
@@ -248,7 +249,7 @@ const handleLogin = async () => {
 .login-form-container {
   flex: 1;
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: center;
   z-index: 2;
 }

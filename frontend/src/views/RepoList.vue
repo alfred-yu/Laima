@@ -1,329 +1,403 @@
 <template>
   <div class="repo-list">
-    <h1>仓库列表</h1>
-    <div class="repo-actions">
-      <button class="create-repo-btn" @click="showCreateModal = true">创建仓库</button>
-      <div class="filter-options">
-        <select v-model="filter">
-          <option value="all">所有仓库</option>
-          <option value="owned">我的仓库</option>
-          <option value="starred">已星标</option>
-        </select>
+    <div class="page-header">
+      <div class="header-left">
+        <h1 class="page-title">仓库</h1>
+        <p class="page-subtitle">管理您的项目仓库</p>
+      </div>
+      <div class="header-right">
+        <button class="btn btn-primary" @click="showCreateModal = true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          新建仓库
+        </button>
       </div>
     </div>
 
-    <div v-if="isLoading" class="loading">加载中...</div>
-    <div v-else-if="error" class="error-message">{{ error }}</div>
-    <div v-else class="repo-grid">
-      <div v-for="repo in repos" :key="repo.id" class="repo-card">
-        <div class="repo-header">
-          <h2 class="repo-name">{{ repo.name }}</h2>
-          <span class="repo-visibility" :class="repo.visibility">{{ repo.visibility }}</span>
-        </div>
-        <p class="repo-description">{{ repo.description || '暂无描述' }}</p>
-        <div class="repo-stats">
-          <span class="stat">📁 {{ repo.default_branch || 'main' }}</span>
-        </div>
-        <div class="repo-actions">
-          <router-link :to="`/repos/${repo.full_path?.split('/')[0] || ''}/${repo.name}/code`" class="btn">查看</router-link>
-          <button class="btn secondary">克隆</button>
+    <div class="filter-bar">
+      <select v-model="filter" @change="loadRepos" class="filter-select">
+        <option value="all">所有仓库</option>
+        <option value="my">我的仓库</option>
+        <option value="starred">已星标</option>
+      </select>
+    </div>
+
+    <div class="repos-container">
+      <div v-if="loading" class="loading-state">
+        <Skeleton type="list" :count="5" />
+      </div>
+      <div v-else-if="error" class="error-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+        <p>{{ error }}</p>
+      </div>
+      <div v-else class="repos-grid">
+        <div v-for="repo in repos.length ? repos : mockRepos" :key="repo.id" class="repo-card">
+          <div class="repo-header">
+            <div class="repo-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+                <polyline points="13 2 13 9 20 9" />
+              </svg>
+            </div>
+            <div class="repo-title-section">
+              <h3 class="repo-name">{{ repo.name }}</h3>
+              <span class="repo-visibility">{{ repo.visibility === 'private' ? '私密' : '公开' }}</span>
+            </div>
+          </div>
+          
+          <p class="repo-description">{{ repo.description || '暂无描述' }}</p>
+          
+          <div class="repo-meta">
+            <div class="repo-stat">
+              <span class="meta-icon">📄</span>
+              <span class="meta-text">{{ repo.language || 'N/A' }}</span>
+            </div>
+            <div class="repo-stat">
+              <span class="meta-icon">⭐</span>
+              <span class="meta-text">{{ repo.stars || 0 }}</span>
+            </div>
+            <div class="repo-stat">
+              <span class="meta-icon">🔀</span>
+              <span class="meta-text">{{ repo.forks || 0 }}</span>
+            </div>
+          </div>
+          
+          <div class="repo-actions">
+            <button class="btn btn-ghost btn-sm">查看</button>
+            <button class="btn btn-ghost btn-sm">克隆</button>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- 创建仓库模态框 -->
-    <div v-if="showCreateModal" class="modal-overlay" @click="showCreateModal = false">
-      <div class="modal" @click.stop>
+    <Modal v-if="showCreateModal" @close="showCreateModal = false">
+      <div class="create-modal">
         <h2>创建新仓库</h2>
-        <form @submit.prevent="handleCreateRepo">
+        <form @submit.prevent="createRepo">
           <div class="form-group">
-            <label for="repo-name">仓库名称 *</label>
-            <input 
-              type="text" 
-              id="repo-name" 
-              v-model="createForm.name" 
-              required 
-              placeholder="输入仓库名称"
-            >
+            <label for="repo-name">仓库名称</label>
+            <input id="repo-name" v-model="newRepo.name" type="text" placeholder="输入仓库名称" />
           </div>
           <div class="form-group">
-            <label for="repo-description">描述</label>
-            <textarea 
-              id="repo-description" 
-              v-model="createForm.description" 
-              placeholder="输入仓库描述"
-              rows="3"
-            ></textarea>
+            <label for="repo-desc">描述</label>
+            <textarea id="repo-desc" v-model="newRepo.description" placeholder="仓库描述" />
           </div>
           <div class="form-group">
             <label>可见性</label>
             <div class="radio-group">
               <label>
-                <input type="radio" v-model="createForm.visibility" value="public">
-                公开 (Public)
+                <input type="radio" v-model="newRepo.visibility" value="public" />
+                公开
               </label>
+              <span class="radio-hint">所有人都可以看到这个仓库</span>
+            </div>
+            <div class="radio-group">
               <label>
-                <input type="radio" v-model="createForm.visibility" value="private">
-                私有 (Private)
+                <input type="radio" v-model="newRepo.visibility" value="private" />
+                私密
               </label>
+              <span class="radio-hint">只有你和你指定的人可以看到</span>
             </div>
           </div>
-          <div class="form-group checkbox-group">
+          <div class="form-group">
             <label>
-              <input type="checkbox" v-model="createForm.auto_init">
-              使用 README 初始化仓库
+              <input type="checkbox" v-model="newRepo.initReadme" />
+              初始化 README.md 仓库
             </label>
           </div>
-          <div class="modal-actions">
-            <button type="button" class="btn secondary" @click="showCreateModal = false">取消</button>
-            <button type="submit" class="btn primary" :disabled="createLoading">
-              {{ createLoading ? '创建中...' : '创建仓库' }}
-            </button>
+          <div class="form-actions">
+            <button type="button" class="btn btn-ghost" @click="showCreateModal = false">取消</button>
+            <button type="submit" class="btn btn-primary">创建</button>
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRepoStore } from '../stores'
-import { repoApi } from '../services/api'
+import { ref, onMounted } from 'vue';
+import { repoApi from '../services/api';
+import { Skeleton, Modal } from '../components';
 
-const repoStore = useRepoStore()
-
-const filter = ref('all')
-const repos = ref<any[]>([])
-const isLoading = ref(false)
-const error = ref('')
-const showCreateModal = ref(false)
-const createLoading = ref(false)
-
-const createForm = ref({
+const repos = ref<any[]>([]);
+const filter = ref('all');
+const loading = ref(true);
+const error = ref('');
+const showCreateModal = ref(false);
+const newRepo = ref({
   name: '',
   description: '',
   visibility: 'private',
-  auto_init: false
-})
+  initReadme: false
+});
+
+const mockRepos = [
+  {
+    id: 1,
+    name: 'frontend-app',
+    description: '前端应用项目，使用 Vue 3 开发',
+    visibility: 'public',
+    language: 'Vue',
+    stars: 128,
+    forks: 34,
+  },
+  {
+    id: 2,
+    name: 'backend-api',
+    description: '后端 API 服务，使用 Go 开发',
+    visibility: 'private',
+    language: 'Go',
+    stars: 87,
+    forks: 15,
+  },
+  {
+    id: 3,
+    name: 'ui-components',
+    description: '通用 UI 组件库',
+    visibility: 'public',
+    language: 'TypeScript',
+    stars: 256,
+    forks: 67,
+  },
+];
 
 const loadRepos = async () => {
   try {
-    isLoading.value = true
-    error.value = ''
-    
-    const response = await repoApi.listRepos() as { items: any[] }
-    repos.value = response.items || []
-    repoStore.setRepos(repos.value)
+    loading.value = true;
+    error.value = '';
+    const response = await repoApi.listRepos();
+    repos.value = (response as any).items || [];
   } catch (err: any) {
-    error.value = err.message || '加载仓库失败'
+    error.value = err.message || '加载失败';
   } finally {
-    isLoading.value = false
+    loading.value = false;
   }
-}
+};
 
-const handleCreateRepo = async () => {
-  try {
-    createLoading.value = true
-    
-    await repoApi.createRepo({
-      name: createForm.value.name,
-      description: createForm.value.description,
-      visibility: createForm.value.visibility,
-      auto_init: createForm.value.auto_init
-    })
-    
-    showCreateModal.value = false
-    createForm.value = {
-      name: '',
-      description: '',
-      visibility: 'private',
-      auto_init: false
-    }
-    
-    // 重新加载仓库列表
-    await loadRepos()
-  } catch (err: any) {
-    alert(err.message || '创建仓库失败')
-  } finally {
-    createLoading.value = false
-  }
-}
+const createRepo = async () => {
+  showCreateModal.value = false;
+  newRepo.value = { name: '', description: '', visibility: 'private', initReadme: false };
+  loadRepos();
+};
 
 onMounted(() => {
-  loadRepos()
-})
+  loadRepos();
+});
 </script>
 
 <style scoped>
 .repo-list {
-  padding: 20px;
+  width: 100%;
 }
 
-.repo-actions {
+.page-header {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.header-left {
+  flex: 1;
+}
+
+.page-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 4px 0;
+  letter-spacing: -0.025em;
+}
+
+.page-subtitle {
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.btn {
+  display: inline-flex;
   align-items: center;
-  margin-bottom: 20px;
-}
-
-.create-repo-btn {
-  padding: 8px 16px;
-  background: var(--accent-color);
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.3s;
-}
-
-.create-repo-btn:hover {
-  opacity: 0.9;
-}
-
-.filter-options select {
-  padding: 8px 12px;
+  gap: 8px;
+  padding: 10px 16px;
   border: 1px solid var(--border-color);
-  border-radius: 4px;
-  font-size: 14px;
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  font-weight: 500;
   background: var(--bg-primary);
   color: var(--text-primary);
-  transition: border-color 0.3s, background-color 0.3s, color 0.3s;
+  cursor: pointer;
+  transition: all 0.15s ease-out;
 }
 
-.loading {
-  text-align: center;
-  padding: 40px;
+.btn-primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: var(--border-color);
+}
+
+.btn-ghost:hover {
+  background: var(--bg-tertiary);
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 0.875rem;
+}
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.filter-select {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  cursor: pointer;
+  transition: all 0.15s ease-out;
+}
+
+.repos-container {
+  min-height: 400px;
+}
+
+.loading-state {
+  padding: 24px;
+}
+
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 64px 24px;
   color: var(--text-secondary);
+  gap: 16px;
 }
 
-.repo-grid {
+.repos-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
 }
 
 .repo-card {
-  background: var(--bg-secondary);
-  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
   padding: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s, background-color 0.3s, box-shadow 0.3s;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  transition: all 0.15s ease-out;
 }
 
 .repo-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-md);
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .repo-header {
   display: flex;
-  justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 10px;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.repo-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: var(--color-primary-bg);
+  border-radius: 8px;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.repo-title-section {
+  flex: 1;
+  min-width: 0;
 }
 
 .repo-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
   margin: 0;
-  font-size: 18px;
-  color: var(--accent-color);
-  transition: color 0.3s;
 }
 
 .repo-visibility {
+  display: inline-block;
   padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.repo-visibility.public {
-  background: var(--success-color);
-  color: #fff;
-}
-
-.repo-visibility.private {
-  background: var(--danger-color);
-  color: #fff;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border-radius: 4px;
 }
 
 .repo-description {
-  margin: 10px 0;
+  font-size: 0.9375rem;
   color: var(--text-secondary);
-  font-size: 14px;
-  transition: color 0.3s;
+  line-height: 1.5;
+  margin-bottom: 16px;
 }
 
-.repo-stats {
+.repo-meta {
   display: flex;
   gap: 16px;
-  margin: 10px 0;
-  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.repo-stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.875rem;
   color: var(--text-secondary);
-  transition: color 0.3s;
 }
 
 .repo-actions {
   display: flex;
-  gap: 10px;
-  margin-top: 15px;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color-light);
 }
 
-.btn {
-  padding: 6px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  text-decoration: none;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.btn:hover {
-  background: var(--bg-secondary);
-}
-
-.btn.secondary {
-  background: var(--bg-secondary);
-}
-
-.btn.primary {
-  background: var(--accent-color);
-  color: #fff;
-  border-color: var(--accent-color);
-}
-
-/* 模态框样式 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.modal {
-  background: var(--bg-secondary);
-  border-radius: 8px;
-  padding: 30px;
+.create-modal {
   width: 100%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
+  max-width: 480px;
 }
 
-.modal h2 {
-  margin-top: 0;
-  margin-bottom: 20px;
+.create-modal h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
   color: var(--text-primary);
+  margin: 0 0 24px 0;
 }
 
 .form-group {
@@ -332,9 +406,10 @@ onMounted(() => {
 
 .form-group label {
   display: block;
-  margin-bottom: 8px;
-  font-weight: 600;
+  font-size: 0.9375rem;
+  font-weight: 500;
   color: var(--text-primary);
+  margin-bottom: 8px;
 }
 
 .form-group input,
@@ -342,49 +417,66 @@ onMounted(() => {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--border-color);
-  border-radius: 4px;
-  font-size: 14px;
+  border-radius: 8px;
   background: var(--bg-primary);
   color: var(--text-primary);
-  box-sizing: border-box;
+  font-size: 0.9375rem;
+  transition: all 0.15s ease-out;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-bg);
 }
 
 .form-group textarea {
   resize: vertical;
+  min-height: 80px;
 }
 
 .radio-group {
   display: flex;
-  gap: 20px;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.radio-group input {
+  margin-top: 3px;
 }
 
 .radio-group label {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: normal;
+  cursor: pointer;
 }
 
-.checkbox-group label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: normal;
+.radio-hint {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
 }
 
-.modal-actions {
+.form-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  margin-top: 20px;
+  gap: 12px;
+  padding-top: 8px;
 }
 
-.error-message {
-  margin: 20px 0;
-  padding: 12px;
-  background: var(--danger-color);
-  color: #fff;
-  border-radius: 4px;
-  text-align: center;
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .repos-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

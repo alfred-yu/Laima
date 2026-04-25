@@ -178,7 +178,8 @@ const handleLogin = async () => {
     userStore.setToken(response.token)
     userStore.setUser(response.user)
     
-    router.push('/')
+    // 登录成功后跳转到用户页面或仪表盘
+    router.push('/dashboard')
   } catch (err: any) {
     error.value = err.message || '登录失败，请检查用户名和密码'
   } finally {

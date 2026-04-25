@@ -199,9 +199,9 @@ const isSidebarOpened = computed(() => globalStore.isSidebarOpened)
 const isLoggedIn = computed(() => userStore.isLoggedIn)
 const currentUser = computed(() => userStore.currentUser)
 
-// 检查是否为登录或注册页面
+// 检查是否为登录、注册或忘记密码页面
 const isAuthPage = computed(() => {
-  return route.path === '/login' || route.path === '/register'
+  return route.path === '/login' || route.path === '/register' || route.path === '/forgot-password'
 })
 
 const toggleSidebar = () => {

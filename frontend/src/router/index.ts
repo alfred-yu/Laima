@@ -109,6 +109,12 @@ const router = createRouter({
       meta: { requiresAuth: false }
     },
     {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: () => import('../views/ForgotPassword.vue'),
+      meta: { requiresAuth: false }
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('../views/Setting.vue'),

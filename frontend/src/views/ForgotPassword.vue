@@ -1,8 +1,8 @@
 <template>
-  <div class="login-page">
-    <div class="login-container">
+  <div class="forgot-password-page">
+    <div class="forgot-password-container">
       <!-- Brand Logo -->
-      <div class="login-brand">
+      <div class="forgot-password-brand">
         <div class="brand-logo">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="logo-icon">
             <path d="M12 2L4 6V12C4 15.31 6.84 18.17 10.5 18.92V22H13.5V18.92C17.16 18.17 20 15.31 20 12V6L12 2Z" fill="var(--color-primary)" />
@@ -14,58 +14,31 @@
         <p class="brand-subtitle">专业的代码托管平台</p>
       </div>
 
-      <!-- Login Form Card -->
-      <div class="login-form-card">
+      <!-- Forgot Password Form Card -->
+      <div class="forgot-password-card">
         <div class="form-header">
-          <h2 class="form-title">登录</h2>
-          <p class="form-subtitle">欢迎回来，继续您的开发工作</p>
+          <h2 class="form-title">忘记密码</h2>
+          <p class="form-subtitle">输入您的邮箱地址，我们将发送重置密码的链接</p>
         </div>
         
-        <form @submit.prevent="handleLogin" class="form-content">
+        <form @submit.prevent="handleForgotPassword" class="form-content">
           <div class="form-group">
-            <label for="username" class="form-label">用户名或邮箱</label>
+            <label for="email" class="form-label">邮箱地址</label>
             <div class="input-wrapper">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="input-icon">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                <polyline points="22,6 12,13 2,6" />
               </svg>
               <input 
-                type="text" 
-                id="username" 
-                v-model="form.username" 
+                type="email" 
+                id="email" 
+                v-model="form.email" 
                 required 
-                placeholder="请输入用户名或邮箱"
+                placeholder="请输入您的邮箱地址"
                 class="form-input"
-                :class="{ 'input-error': error && form.username }"
+                :class="{ 'input-error': error && form.email }"
               >
             </div>
-          </div>
-          
-          <div class="form-group">
-            <div class="label-row">
-              <label for="password" class="form-label">密码</label>
-              <router-link to="/forgot-password" class="forgot-link">忘记密码？</router-link>
-            </div>
-            <div class="input-wrapper">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="input-icon">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
-              <input 
-                type="password" 
-                id="password" 
-                v-model="form.password" 
-                required 
-                placeholder="请输入密码"
-                class="form-input"
-                :class="{ 'input-error': error && form.password }"
-              >
-            </div>
-          </div>
-          
-          <div class="form-group checkbox-group">
-            <input type="checkbox" id="remember" v-model="form.remember" class="form-checkbox">
-            <label for="remember" class="checkbox-label">记住我</label>
           </div>
           
           <div v-if="error" class="error-message">
@@ -77,42 +50,39 @@
             <span>{{ error }}</span>
           </div>
           
+          <div v-if="success" class="success-message">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22,4 12,14.01 9,11.01" />
+            </svg>
+            <span>{{ success }}</span>
+          </div>
+          
           <button 
             type="submit" 
-            class="login-button"
+            class="forgot-password-button"
             :class="{ 'is-loading': isLoading }"
             :disabled="isLoading"
           >
             <svg v-if="isLoading" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="loading-spinner">
               <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32" />
             </svg>
-            {{ isLoading ? '登录中...' : '登录' }}
+            {{ isLoading ? '发送中...' : '发送重置链接' }}
           </button>
-          
-          <div class="divider">
-            <span>或</span>
-          </div>
-          
-          <div class="social-login">
-            <button type="button" class="social-button github">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-              </svg>
-              <span>使用 GitHub 登录</span>
-            </button>
-          </div>
         </form>
         
         <div class="form-footer">
-          <p class="register-link">
-            还没有账号？
-            <router-link to="/register" class="register-button">立即注册</router-link>
-          </p>
+          <router-link to="/login" class="back-to-login">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="15,18 9,12 15,6" />
+            </svg>
+            返回登录
+          </router-link>
         </div>
       </div>
 
       <!-- Footer Links -->
-      <div class="login-footer">
+      <div class="forgot-password-footer">
         <div class="footer-links">
           <a href="#" class="footer-link">关于我们</a>
           <a href="#" class="footer-link">隐私政策</a>
@@ -130,35 +100,36 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useUserStore } from '../stores'
 import { authApi } from '../services/api'
 
 const router = useRouter()
-const userStore = useUserStore()
 
 const form = ref({
-  username: '',
-  password: '',
-  remember: false
+  email: ''
 })
 
 const isLoading = ref(false)
 const error = ref('')
+const success = ref('')
 
-const handleLogin = async () => {
+const handleForgotPassword = async () => {
   try {
     isLoading.value = true
     error.value = ''
+    success.value = ''
     
-    const response = await authApi.login(form.value.username, form.value.password) as { token: string; user: any }
+    // 模拟 API 调用
+    await new Promise(resolve => setTimeout(resolve, 1000))
     
-    userStore.setToken(response.token)
-    userStore.setUser(response.user)
+    // 模拟成功响应
+    success.value = '重置密码链接已发送到您的邮箱，请查收'
     
-    // 登录成功后跳转到用户页面或仪表盘
-    router.push('/dashboard')
+    // 3秒后跳转到登录页面
+    setTimeout(() => {
+      router.push('/login')
+    }, 3000)
   } catch (err: any) {
-    error.value = err.message || '登录失败，请检查用户名和密码'
+    error.value = err.message || '发送失败，请稍后重试'
   } finally {
     isLoading.value = false
   }
@@ -166,7 +137,7 @@ const handleLogin = async () => {
 </script>
 
 <style scoped>
-.login-page {
+.forgot-password-page {
   min-height: 100vh;
   background: var(--bg-secondary);
   display: flex;
@@ -175,7 +146,7 @@ const handleLogin = async () => {
   padding: 24px;
 }
 
-.login-container {
+.forgot-password-container {
   width: 100%;
   max-width: 480px;
   display: flex;
@@ -185,7 +156,7 @@ const handleLogin = async () => {
 }
 
 /* Brand Logo */
-.login-brand {
+.forgot-password-brand {
   text-align: center;
   margin-bottom: 16px;
 }
@@ -215,8 +186,8 @@ const handleLogin = async () => {
   line-height: 1.5;
 }
 
-/* Login Form Card */
-.login-form-card {
+/* Forgot Password Form Card */
+.forgot-password-card {
   width: 100%;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
@@ -254,29 +225,10 @@ const handleLogin = async () => {
   gap: 8px;
 }
 
-.label-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
 .form-label {
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--text-primary);
-}
-
-.forgot-link {
-  font-size: 0.875rem;
-  color: var(--color-primary);
-  text-decoration: none;
-  font-weight: 500;
-  transition: color 0.15s ease-out;
-}
-
-.forgot-link:hover {
-  color: var(--color-primary-hover);
-  text-decoration: underline;
 }
 
 .input-wrapper {
@@ -313,25 +265,6 @@ const handleLogin = async () => {
   border-color: var(--color-danger);
 }
 
-.checkbox-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-direction: row;
-}
-
-.form-checkbox {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--color-primary);
-}
-
-.checkbox-label {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
 .error-message {
   display: flex;
   align-items: center;
@@ -344,7 +277,19 @@ const handleLogin = async () => {
   border: 1px solid rgba(220, 38, 38, 0.2);
 }
 
-.login-button {
+.success-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.forgot-password-button {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -360,13 +305,13 @@ const handleLogin = async () => {
   transition: all 0.15s ease-out;
 }
 
-.login-button:hover:not(:disabled) {
+.forgot-password-button:hover:not(:disabled) {
   background: var(--color-primary-hover);
   border-color: var(--color-primary-hover);
   transform: translateY(-1px);
 }
 
-.login-button:disabled {
+.forgot-password-button:disabled {
   background: var(--bg-tertiary);
   border-color: var(--border-color);
   color: var(--text-muted);
@@ -396,98 +341,29 @@ const handleLogin = async () => {
   100% { stroke-dashoffset: 32; }
 }
 
-.divider {
-  position: relative;
-  display: flex;
-  align-items: center;
-  margin: 20px 0;
-}
-
-.divider::before {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border-color);
-}
-
-.divider span {
-  padding: 0 16px;
-  font-size: 0.8125rem;
-  color: var(--text-muted);
-  background: var(--bg-primary);
-}
-
-.divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border-color);
-}
-
-.social-login {
-  display: flex;
-  gap: 12px;
-}
-
-.social-button {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease-out;
-}
-
-.social-button:hover {
-  background: var(--bg-secondary);
-  border-color: var(--color-gray-300);
-  transform: translateY(-1px);
-}
-
-.social-button.github {
-  border-color: var(--color-gray-700);
-  color: var(--color-gray-700);
-  background: var(--bg-primary);
-}
-
-.social-button.github:hover {
-  background: var(--color-gray-50);
-  border-color: var(--color-gray-600);
-}
-
 .form-footer {
   margin-top: 24px;
   text-align: center;
 }
 
-.register-link {
+.back-to-login {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 0.875rem;
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.register-button {
   color: var(--color-primary);
-  font-weight: 600;
   text-decoration: none;
-  transition: color 0.15s ease-out;
+  font-weight: 500;
+  transition: all 0.15s ease-out;
 }
 
-.register-button:hover {
+.back-to-login:hover {
   color: var(--color-primary-hover);
   text-decoration: underline;
 }
 
 /* Footer Links */
-.login-footer {
+.forgot-password-footer {
   width: 100%;
   text-align: center;
   margin-top: 16px;
@@ -520,15 +396,15 @@ const handleLogin = async () => {
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .login-page {
+  .forgot-password-page {
     padding: 20px;
   }
   
-  .login-container {
+  .forgot-password-container {
     gap: 24px;
   }
   
-  .login-form-card {
+  .forgot-password-card {
     padding: 24px;
   }
   
@@ -540,21 +416,17 @@ const handleLogin = async () => {
     font-size: 1.125rem;
   }
   
-  .social-login {
-    flex-direction: column;
-  }
-  
   .footer-links {
     gap: 16px;
   }
 }
 
 @media (max-width: 480px) {
-  .login-page {
+  .forgot-password-page {
     padding: 16px;
   }
   
-  .login-form-card {
+  .forgot-password-card {
     padding: 20px;
   }
   

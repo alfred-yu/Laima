@@ -97,12 +97,6 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
-      path: '/settings',
-      name: 'settings',
-      component: () => import('../views/Settings.vue'),
-      meta: { requiresAuth: true }
-    },
-    {
       path: '/login',
       name: 'login',
       component: () => import('../views/Login.vue'),
@@ -113,6 +107,12 @@ const router = createRouter({
       name: 'register',
       component: () => import('../views/Register.vue'),
       meta: { requiresAuth: false }
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('../views/Setting.vue'),
+      meta: { requiresAuth: true }
     }
   ]
 })

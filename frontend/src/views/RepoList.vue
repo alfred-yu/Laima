@@ -17,11 +17,38 @@
     </div>
 
     <div class="filter-bar">
-      <select v-model="filter" @change="loadRepos" class="filter-select">
-        <option value="all">所有仓库</option>
-        <option value="my">我的仓库</option>
-        <option value="starred">已星标</option>
-      </select>
+      <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon">
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+        <input 
+          type="text" 
+          v-model="searchQuery" 
+          @input="handleSearch" 
+          placeholder="搜索仓库..." 
+          class="search-input"
+        >
+        <button v-if="searchQuery" @click="clearSearch" class="clear-search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+      <div class="filter-controls">
+        <select v-model="filter" @change="loadRepos" class="filter-select">
+          <option value="all">所有仓库</option>
+          <option value="my">我的仓库</option>
+          <option value="starred">已星标</option>
+        </select>
+        <select v-model="sortBy" @change="loadRepos" class="sort-select">
+          <option value="updated">最近更新</option>
+          <option value="created">创建时间</option>
+          <option value="stars">星标数</option>
+          <option value="forks">Fork 数</option>
+        </select>
+      </div>
     </div>
 
     <div class="repos-container">
@@ -128,6 +155,8 @@ import { Skeleton, Modal } from '../components';
 
 const repos = ref<any[]>([]);
 const filter = ref('all');
+const sortBy = ref('updated');
+const searchQuery = ref('');
 const loading = ref(true);
 const error = ref('');
 const showCreateModal = ref(false);
@@ -147,6 +176,8 @@ const mockRepos = [
     language: 'Vue',
     stars: 128,
     forks: 34,
+    updated_at: '2026-04-25T10:00:00Z',
+    created_at: '2026-04-01T00:00:00Z'
   },
   {
     id: 2,
@@ -156,6 +187,8 @@ const mockRepos = [
     language: 'Go',
     stars: 87,
     forks: 15,
+    updated_at: '2026-04-24T15:30:00Z',
+    created_at: '2026-03-15T00:00:00Z'
   },
   {
     id: 3,
@@ -165,15 +198,87 @@ const mockRepos = [
     language: 'TypeScript',
     stars: 256,
     forks: 67,
+    updated_at: '2026-04-23T09:15:00Z',
+    created_at: '2026-02-10T00:00:00Z'
   },
+  {
+    id: 4,
+    name: 'mobile-app',
+    description: '移动应用项目，使用 React Native 开发',
+    visibility: 'public',
+    language: 'JavaScript',
+    stars: 45,
+    forks: 8,
+    updated_at: '2026-04-22T14:45:00Z',
+    created_at: '2026-01-05T00:00:00Z'
+  },
+  {
+    id: 5,
+    name: 'api-gateway',
+    description: 'API 网关服务',
+    visibility: 'private',
+    language: 'Node.js',
+    stars: 23,
+    forks: 3,
+    updated_at: '2026-04-21T11:20:00Z',
+    created_at: '2025-12-20T00:00:00Z'
+  }
 ];
 
+// 处理搜索
+const handleSearch = () => {
+  // 防抖处理
+  clearTimeout(window.searchTimeout);
+  window.searchTimeout = setTimeout(() => {
+    loadRepos();
+  }, 300);
+};
+
+// 清除搜索
+const clearSearch = () => {
+  searchQuery.value = '';
+  loadRepos();
+};
+
+// 加载仓库
 const loadRepos = async () => {
   try {
     loading.value = true;
     error.value = '';
-    const response = await repoApi.listRepos();
-    repos.value = (response as any).items || [];
+    
+    // 模拟 API 调用
+    // const response = await repoApi.listRepos();
+    // repos.value = (response as any).items || [];
+    
+    // 模拟搜索和排序
+    let filteredRepos = [...mockRepos];
+    
+    // 搜索过滤
+    if (searchQuery.value) {
+      const query = searchQuery.value.toLowerCase();
+      filteredRepos = filteredRepos.filter(repo => 
+        repo.name.toLowerCase().includes(query) || 
+        repo.description.toLowerCase().includes(query)
+      );
+    }
+    
+    // 排序
+    filteredRepos.sort((a, b) => {
+      switch (sortBy.value) {
+        case 'updated':
+          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+        case 'created':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case 'stars':
+          return b.stars - a.stars;
+        case 'forks':
+          return b.forks - a.forks;
+        default:
+          return 0;
+      }
+    });
+    
+    repos.value = filteredRepos;
   } catch (err: any) {
     error.value = err.message || '加载失败';
   } finally {
@@ -265,10 +370,68 @@ onMounted(() => {
 .filter-bar {
   display: flex;
   align-items: center;
+  gap: 16px;
   margin-bottom: 24px;
+  flex-wrap: wrap;
 }
 
-.filter-select {
+.search-box {
+  flex: 1;
+  min-width: 300px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px 12px 10px 40px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  transition: all 0.15s ease-out;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-bg);
+}
+
+.clear-search {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.15s ease-out;
+}
+
+.clear-search:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.filter-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.filter-select,
+.sort-select {
   padding: 8px 12px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
@@ -277,6 +440,19 @@ onMounted(() => {
   font-size: 0.9375rem;
   cursor: pointer;
   transition: all 0.15s ease-out;
+  min-width: 120px;
+}
+
+.filter-select:hover,
+.sort-select:hover {
+  border-color: var(--color-primary);
+}
+
+.filter-select:focus,
+.sort-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-bg);
 }
 
 .repos-container {
